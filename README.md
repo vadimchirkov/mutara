@@ -64,7 +64,9 @@ src/aggregate.ts       the game as a TEOB aggregate: one entity per game
 src/memory.ts          journal -> prior projection (the hypothesis, in one file)
 src/harness.ts         SQLite runtime wiring
 src/offline.ts         baselines with no runtime at all
-src/play.ts            manual play, and policy playback
+src/play.ts            the playable terminal game, and policy playback
+src/sessions.ts        hand-played sessions: record, load, project
+src/ui/sprites.ts      8x8 pixel sprites in half-block characters
 src/run.ts             the two-arm bench
 test/determinism.test.ts
 ```

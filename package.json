@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clack/prompts": "^1.8.1",
     "@lambda-house/teob-ts": "link:../teob-ts",
     "better-sqlite3": "^12.11.1"
   },

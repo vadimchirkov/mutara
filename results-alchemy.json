@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-18T19:49:04.839Z",
+  "generatedAt": "2026-09-18T19:58:35.245Z",
   "protocol": {
     "games": 10,
     "attempts": 158,
@@ -40,6 +40,39 @@
       "max": 170
     }
   ],
+  "humanSessions": [
+    {
+      "sessions": 1,
+      "attempts": 2,
+      "discovered": 5,
+      "hitRate": 0.5
+    },
+    {
+      "sessions": 1,
+      "attempts": 4,
+      "discovered": 6,
+      "hitRate": 0.5
+    },
+    {
+      "sessions": 1,
+      "attempts": 2,
+      "discovered": 6,
+      "hitRate": 1
+    },
+    {
+      "sessions": 1,
+      "attempts": 1,
+      "discovered": 5,
+      "hitRate": 1
+    },
+    {
+      "sessions": 1,
+      "attempts": 1,
+      "discovered": 5,
+      "hitRate": 1
+    }
+  ],
+  "seededFromHumans": false,
   "arms": {
     "blind": {
       "memory": false,

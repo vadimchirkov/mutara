@@ -12,14 +12,19 @@
 
 import { writeFileSync } from "node:fs";
 import { loadTable } from "./game/table.js";
-import { policies } from "./game/policies.js";
+import { policies, type Memory } from "./game/policies.js";
 import { freshDb, harness } from "./harness.js";
 import { emptyMemory, journalBytes, projectMemory, readJournal } from "./memory.js";
 import { baselines, HUMAN_MEDIAN } from "./offline.js";
+import { loadSessions, memoryFromSessions, sessionStats } from "./sessions.js";
 import type { AlchemyDeps } from "./aggregate.js";
 
-const GAMES = Number(process.argv[2] ?? 10);
-const ATTEMPTS = Number(process.argv[3] ?? 158);
+// Positional args are read after flags are removed, so `bench 5 --flag` and
+// `bench --flag 5` both mean the same thing.
+const args = process.argv.slice(2);
+const positional = args.filter((a) => !a.startsWith("--"));
+const GAMES = Number(positional[0] ?? 10);
+const ATTEMPTS = Number(positional[1] ?? 158);
 const POLICY = "empowerment";
 
 interface Arm {
@@ -28,6 +33,14 @@ interface Arm {
   bytesPerGame: number;
   events: number;
 }
+
+/**
+ * Hand-played sessions are a corpus like any other: the same projection runs
+ * over them, so an agent can start from what a person already learned. With
+ * `--seed-from-humans` the memory arm begins with that prior instead of nothing.
+ */
+const humanSessions = loadSessions();
+const humanSeed = args.includes("--seed-from-humans");
 
 async function arm(memory: boolean): Promise<Arm> {
   const table = loadTable();
@@ -38,8 +51,10 @@ async function arm(memory: boolean): Promise<Arm> {
   const h = harness(path, deps);
   const discoveries: number[] = [];
 
+  const seed = memory && humanSeed ? memoryFromSessions(humanSessions) : undefined;
+
   for (let g = 0; g < GAMES; g++) {
-    deps.memory = memory ? projectMemory(readJournal(path)) : emptyMemory();
+    deps.memory = memory ? merge(projectMemory(readJournal(path)), seed) : emptyMemory();
     const state = await h.play(`g${g}`, g + 1, POLICY, ATTEMPTS);
     discoveries.push(state?.known.length ?? 0);
   }
@@ -57,6 +72,18 @@ async function arm(memory: boolean): Promise<Arm> {
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
+/** Union of two priors. Both are derived, so nothing is lost by rebuilding. */
+function merge(a: Memory, b?: Memory): Memory {
+  if (!b) return a;
+  const wins = new Map(a.wins);
+  for (const [k, v] of b.wins) wins.set(k, (wins.get(k) ?? 0) + v);
+  return {
+    deadPairs: new Set([...a.deadPairs, ...b.deadPairs]),
+    productive: new Set([...a.productive, ...b.productive]),
+    wins,
+  };
+}
+
 const blind = await arm(false);
 const remembering = await arm(true);
 const base = baselines(ATTEMPTS, 20);
@@ -66,6 +93,8 @@ const results = {
   protocol: { games: GAMES, attempts: ATTEMPTS, policy: POLICY, humanMedian: HUMAN_MEDIAN },
   table: { hash: loadTable().hash, elements: loadTable().elements.length },
   offlineBaselines: base,
+  humanSessions: humanSessions.map(sessionStats),
+  seededFromHumans: humanSeed,
   arms: {
     blind: { ...blind, mean: mean(blind.discoveries) },
     memory: { ...remembering, mean: mean(remembering.discoveries) },
@@ -78,7 +107,9 @@ writeFileSync(new URL("../results-alchemy.json", import.meta.url), JSON.stringif
 
 console.log(`table ${results.table.elements} elements, ${GAMES} games x ${ATTEMPTS} attempts, policy ${POLICY}\n`);
 for (const b of base) console.log(`  baseline ${b.policy.padEnd(12)} ${b.mean.toFixed(1)}`);
-console.log(`  human median ${HUMAN_MEDIAN}\n`);
+console.log(`  human median ${HUMAN_MEDIAN}   (quoted; play your own with \`pnpm run play\`)`);
+const played = humanSessions.reduce((n, s) => n + s.attempts.length, 0);
+console.log(`  ${humanSessions.length} recorded session(s), ${played} attempts total${humanSeed ? ", seeding the memory arm" : ""}\n`);
 console.log(`blind   ${blind.discoveries.join(" ")}   mean ${mean(blind.discoveries).toFixed(1)}`);
 console.log(`memory  ${remembering.discoveries.join(" ")}   mean ${mean(remembering.discoveries).toFixed(1)}`);
 console.log(`\nlift ${results.lift.toFixed(1)} elements/game`);
