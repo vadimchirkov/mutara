@@ -1,0 +1,24 @@
+{
+  "name": "teob-alchemy",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Self-improving-agent bench on TEOB: Little Alchemy 2 as a journal-as-corpus testbed",
+  "scripts": {
+    "offline": "tsx src/offline.ts",
+    "bench": "tsx src/run.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@lambda-house/teob-ts": "link:../teob-ts",
+    "better-sqlite3": "^12.11.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

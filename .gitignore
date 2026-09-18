@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# Recipe tables are third-party game data — private, never committed.
+data/
+*.db
+*.db-wal
+*.db-shm

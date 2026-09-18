@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2026-09-18T19:46:47.589Z",
+  "protocol": {
+    "games": 10,
+    "attempts": 158,
+    "policy": "empowerment",
+    "humanMedian": 51
+  },
+  "table": {
+    "hash": "sha256:03bf55f383a2eda8fa4f91f7751b21e932a1a4be3581fee30798bc5f124116bb",
+    "elements": 720
+  },
+  "offlineBaselines": [
+    {
+      "policy": "random",
+      "mean": 30.1,
+      "median": 31,
+      "min": 23,
+      "max": 36
+    },
+    {
+      "policy": "recency",
+      "mean": 21.05,
+      "median": 21,
+      "min": 18,
+      "max": 25
+    },
+    {
+      "policy": "empowerment",
+      "mean": 42.7,
+      "median": 43,
+      "min": 40,
+      "max": 43
+    },
+    {
+      "policy": "oracle",
+      "mean": 166.65,
+      "median": 167,
+      "min": 163,
+      "max": 170
+    }
+  ],
+  "arms": {
+    "blind": {
+      "memory": false,
+      "discoveries": [
+        43,
+        43,
+        43,
+        43,
+        43,
+        43,
+        42,
+        43,
+        43,
+        43
+      ],
+      "bytesPerGame": 14397,
+      "events": 160,
+      "mean": 42.9
+    },
+    "memory": {
+      "memory": true,
+      "discoveries": [
+        43,
+        54,
+        58,
+        64,
+        66,
+        69,
+        73,
+        77,
+        79,
+        79
+      ],
+      "bytesPerGame": 14959,
+      "events": 160,
+      "mean": 66.2
+    }
+  },
+  "lift": 23.300000000000004
+}
