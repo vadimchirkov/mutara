@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Self-improving-agent bench on TEOB: Little Alchemy 2 as a journal-as-corpus testbed",
   "scripts": {
+    "play": "tsx src/play.ts",
     "offline": "tsx src/offline.ts",
     "bench": "tsx src/run.ts",
     "test": "vitest run",

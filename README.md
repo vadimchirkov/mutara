@@ -64,6 +64,7 @@ src/aggregate.ts       the game as a TEOB aggregate: one entity per game
 src/memory.ts          journal -> prior projection (the hypothesis, in one file)
 src/harness.ts         SQLite runtime wiring
 src/offline.ts         baselines with no runtime at all
+src/play.ts            manual play, and policy playback
 src/run.ts             the two-arm bench
 test/determinism.test.ts
 ```
@@ -120,10 +121,17 @@ ceiling rather than a baseline.
 
 ```bash
 pnpm install
-pnpm run offline    # baselines, no runtime, no API
-pnpm test           # determinism
-pnpm run bench      # two-arm bench -> results-alchemy.json
+pnpm run play                 # play it yourself, 158 attempts
+pnpm run play empowerment 7   # watch a policy play, seed 7
+pnpm run offline              # baselines, no runtime, no API
+pnpm test                     # determinism
+pnpm run bench                # two-arm bench -> results-alchemy.json
 ```
+
+Playing it yourself is not a novelty: it produces a human number under exactly
+this protocol and this table, which is the controlled comparison the quoted 51
+is not. `play` uses the offline engine and writes no journal — use `bench` for
+those.
 
 `@lambda-house/teob-ts` is linked from a sibling checkout (`link:../teob-ts`) so
 framework changes are visible without publishing. Switch to a version or a
