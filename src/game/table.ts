@@ -49,7 +49,9 @@ export function loadTable(path = new URL("../../data/cheater_la2.json", import.m
  */
 export function shuffleNames(table: Table, seed: number): Table {
   const rand = rng(seed);
-  const from = table.elements;
+  // Keep the four initial elements fixed: renaming them without renaming the
+  // starting inventory would change which graph is reachable, not just semantics.
+  const from = table.elements.filter((e) => !(BASE as readonly string[]).includes(e));
   const to = [...from];
   for (let i = to.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
@@ -59,7 +61,7 @@ export function shuffleNames(table: Table, seed: number): Table {
   const inverse = new Map(to.map((n, i) => [n, from[i]]));
   return {
     hash: `${table.hash}+shuffle:${seed}`,
-    elements: to,
+    elements: table.elements.map((e) => map.get(e) ?? e),
     combine: (a, b) =>
       table.combine(inverse.get(a) ?? a, inverse.get(b) ?? b).map((r) => map.get(r) ?? r),
   };

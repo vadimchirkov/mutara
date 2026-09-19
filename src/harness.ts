@@ -32,8 +32,6 @@ export interface Harness {
   close(): Promise<void>;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 export function harness(db: string, deps: AlchemyDeps, timeoutMs = 30_000): Harness {
   const finished = new Set<string>();
   const waiters = new Map<string, () => void>();
@@ -45,7 +43,7 @@ export function harness(db: string, deps: AlchemyDeps, timeoutMs = 30_000): Harn
       recoverEntitiesOnStart: true,
       onPersisted: (b) => {
         for (const r of b.records) {
-          if (r.manifest !== "game_finished") continue;
+          if (r.manifest !== "game_finished" && r.manifest !== "game_failed") continue;
           finished.add(b.entityId);
           waiters.get(b.entityId)?.();
           waiters.delete(b.entityId);
@@ -67,19 +65,24 @@ export function harness(db: string, deps: AlchemyDeps, timeoutMs = 30_000): Harn
 
   async function start(id: string, seed: number, policy: string, attempts: number) {
     await started;
-    await runtime.tell(EntityId(id), { tag: "start_game", seed, policy, attempts }, alchemyCategory);
+    const result = await runtime.ask(EntityId(id), { tag: "start_game", seed, policy, attempts }, alchemyCategory);
+    if (!result.ok) throw new Error(`Could not start game ${id}`);
+    if (result.value.reply?.tag === "error") throw new Error(result.value.reply.message);
   }
 
   async function waitFinished(id: string, ms = timeoutMs) {
     await started;
     if (finished.has(id)) return;
-    const done = new Promise<void>((res) => waiters.set(id, res));
-    await Promise.race([
-      done,
-      sleep(ms).then(() => {
-        throw new Error(`game ${id} did not finish in ${ms}ms`);
-      }),
-    ]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        waiters.set(id, resolve);
+        timer = setTimeout(() => reject(new Error(`game ${id} did not finish in ${ms}ms`)), ms);
+      });
+    } finally {
+      clearTimeout(timer);
+      waiters.delete(id);
+    }
   }
 
   return {
@@ -89,12 +92,11 @@ export function harness(db: string, deps: AlchemyDeps, timeoutMs = 30_000): Harn
 
     async play(id, seed, policy, attempts) {
       if (attempts === 0) return state(id); // reload-only, used by the snapshot test
-      // The waiter is registered before the game starts: a short game can finish
-      // inside `tell`, and a waiter installed afterwards would never fire.
-      const done = waitFinished(id);
       await start(id, seed, policy, attempts);
-      await done;
-      return state(id);
+      await waitFinished(id); // finished also remembers games completed inside start()
+      const result = await state(id);
+      if (result?.status === "failed") throw new Error(result.error ?? `game ${id} failed`);
+      return result;
     },
 
     async close() {

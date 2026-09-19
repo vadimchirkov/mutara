@@ -9,6 +9,7 @@
 import { BASE, pairKey, rng, type Table } from "./table.js";
 import type { GameView, Policy } from "./policies.js";
 import type { Memory } from "../memory.js";
+import type { JudgeRequest } from "../judge.js";
 
 export interface GameState {
   seed: number;
@@ -23,7 +24,10 @@ export interface GameState {
   tried: string[];
   discoveredAt: Record<string, number>;
   wins: Record<string, number>;
-  status: "idle" | "playing" | "finished";
+  status: "idle" | "playing" | "finished" | "failed";
+  judgeConfig?: { model: string; shortlist: number };
+  pendingJudgment?: { t: number; request: JudgeRequest };
+  error?: string;
 }
 
 export const initialGame = (): GameState => ({
@@ -104,6 +108,7 @@ export interface GameStart {
   tableHash: string;
   policyHash?: string;
   memoryHash?: string;
+  judgeConfig?: GameState["judgeConfig"];
 }
 
 export function startGame(_s: GameState, start: GameStart): GameState {

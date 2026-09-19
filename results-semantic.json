@@ -1,0 +1,147 @@
+{
+  "generatedAt": "2026-09-19T11:29:54.335Z",
+  "protocol": {
+    "games": 3,
+    "attempts": 158,
+    "shortlist": 12,
+    "model": "jev-1.13.0",
+    "shuffleSeed": 719,
+    "tableHash": "sha256:03bf55f383a2eda8fa4f91f7751b21e932a1a4be3581fee30798bc5f124116bb"
+  },
+  "dataDir": "/Users/vadim/Desktop/teob-alchemy/data/semantic-1789817005457/",
+  "baselines": {
+    "random": {
+      "discoveries": [
+        31,
+        28,
+        33
+      ],
+      "mean": 30.666666666666668
+    },
+    "recency": {
+      "discoveries": [
+        21,
+        22,
+        24
+      ],
+      "mean": 22.333333333333332
+    },
+    "empowerment": {
+      "discoveries": [
+        43,
+        43,
+        43
+      ],
+      "mean": 43
+    },
+    "oracle": {
+      "discoveries": [
+        167,
+        168,
+        164
+      ],
+      "mean": 166.33333333333334
+    }
+  },
+  "arms": {
+    "semantic": {
+      "discoveries": [
+        39,
+        38,
+        40
+      ],
+      "mean": 39,
+      "calibration": {
+        "pairsScored": 5682,
+        "positiveRate": 0.27173530447025696,
+        "correlation": 0.0613369833780056,
+        "brier": 0.21035003519886944,
+        "constantPrevalenceBrier": 0.19789522877471372,
+        "selectedHitRate": 0.22151898734177214,
+        "heuristicHitRateOnSameShortlists": 0.2721518987341772,
+        "shortlistCeilingHitRate": 0.9852320675105485
+      },
+      "usage": {
+        "requests": 474,
+        "httpAttempts": 474,
+        "inputTokens": 573381,
+        "outputTokens": 99432,
+        "estimatedUsd": 0.024082002,
+        "requestP50Ms": 262,
+        "models": [
+          "jev-1.13.0"
+        ]
+      },
+      "journal": {
+        "events": 1428,
+        "bytes": 2079602
+      }
+    },
+    "semanticMemory": {
+      "discoveries": [
+        38,
+        49,
+        54
+      ],
+      "mean": 47,
+      "calibration": {
+        "pairsScored": 5682,
+        "positiveRate": 0.3632523759239704,
+        "correlation": 0.10584659356160532,
+        "brier": 0.2330705033438927,
+        "constantPrevalenceBrier": 0.2313000873095609,
+        "selectedHitRate": 0.270042194092827,
+        "heuristicHitRateOnSameShortlists": 0.17932489451476794,
+        "shortlistCeilingHitRate": 0.9978902953586498
+      },
+      "usage": {
+        "requests": 474,
+        "httpAttempts": 474,
+        "inputTokens": 592417,
+        "outputTokens": 99432,
+        "estimatedUsd": 0.024881514000000004,
+        "requestP50Ms": 266,
+        "models": [
+          "jev-1.13.0"
+        ]
+      },
+      "journal": {
+        "events": 1428,
+        "bytes": 2114076
+      }
+    },
+    "shuffled": {
+      "discoveries": [
+        43,
+        43,
+        42
+      ],
+      "mean": 42.666666666666664,
+      "calibration": {
+        "pairsScored": 5682,
+        "positiveRate": 0.22210489264343541,
+        "correlation": 0.148865294939881,
+        "brier": 0.22154352340724884,
+        "constantPrevalenceBrier": 0.17277430930728344,
+        "selectedHitRate": 0.24472573839662448,
+        "heuristicHitRateOnSameShortlists": 0.5,
+        "shortlistCeilingHitRate": 0.9789029535864979
+      },
+      "usage": {
+        "requests": 474,
+        "httpAttempts": 474,
+        "inputTokens": 584621,
+        "outputTokens": 99432,
+        "estimatedUsd": 0.024554082,
+        "requestP50Ms": 263,
+        "models": [
+          "jev-1.13.0"
+        ]
+      },
+      "journal": {
+        "events": 1428,
+        "bytes": 2124818
+      }
+    }
+  }
+}

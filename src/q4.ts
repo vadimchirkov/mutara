@@ -74,8 +74,12 @@ export function productive(table: Table): Evaluator {
     name: "GroundTruth",
     async evaluate(input: EvalInput) {
       const c = JSON.parse(input.context ?? "{}") as Situation;
-      const [a, b] = input.response.split(" + ");
+      const parts = input.response.split(" + ");
+      const [a, b] = parts;
       const known = new Set(c.known);
+      if (parts.length !== 2 || !known.has(a) || !known.has(b) || c.tried.includes(pairKey(a, b))) {
+        return { evaluatorName: "GroundTruth", score: 0 };
+      }
       const fresh = a && b ? table.combine(a, b).filter((r) => !known.has(r)) : [];
       return { evaluatorName: "GroundTruth", score: fresh.length > 0 ? 1 : 0 };
     },
@@ -116,4 +120,3 @@ export function correlation(xs: number[], ys: number[]): number {
   }
   return dx === 0 || dy === 0 ? 0 : num / Math.sqrt(dx * dy);
 }
-

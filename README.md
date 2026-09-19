@@ -86,10 +86,10 @@ replaying its own discoveries, not reasoning about elements it has never
 combined. That is a real and useful form of self-improvement — it is what the
 journal buys for free — but it is not world knowledge.
 
-The gap between 79 and the oracle's 167 is where world knowledge would live. A
-semantic judge scoring *untried* pairs is the next step, and the baselines above
-are the bar it has to clear: beat 42.7 to be worth its cost, beat 51 to beat a
-person. That step needs a model; everything in this repo today runs offline.
+The gap between 79 and the oracle's 167 is where world knowledge could help.
+The TypeSafe bench below tests this: model scores rerank untried pairs, and the
+recipe table measures whether that choice helped. The original bench remains
+offline; model calls are opt-in through `bench:semantic`.
 
 The human median is quoted for orientation, not as a controlled comparison:
 Brändle's participants played the real game in a UI, where 158 was their mean
@@ -112,6 +112,8 @@ src/ui/sprites.ts      8x8 pixel sprites in half-block characters
 src/run.ts             the two-arm bench
 src/q4.ts              the Q4 control: dataset, truth evaluator, correlation
 src/q4-control.ts      its runner
+src/judge.ts           TypeSafe request, validation and shortlist ranking
+src/semantic-bench.ts  live model bench, calibration and offline journal replay
 test/determinism.test.ts
 test/snapshot.test.ts
 test/aggregate-properties.test.ts
@@ -130,10 +132,13 @@ was the obvious candidate and is the wrong tool here: it compiles to a DAG and
 rejects cycles, so a 158-iteration loop cannot be one flow run. A plain aggregate
 is what the framework is for, and it keeps the journal as the complete record.
 
-**`decide` performs no side effects.** Every step is pure, which is why this
-runs on today's framework instead of waiting for effect kinds (Stage 2 of the
-roadmap). The judge, when it arrives, will be the first effect in the system —
-and the first thing that needs at-most-once handling.
+**Model calls are journaled effects.** `decide` persists `judgment_requested`
+before a `Run` effect sends that exact payload. The response, usage and selected
+`pair_tried` are committed together. Duplicate completions cannot spend another
+game attempt. Recovery reuses an unfinished request; because inference has no
+provider idempotency contract, a crash after inference but before persistence
+can incur another API charge. This is not exactly-once billing. Explicit
+429/529 rejections get bounded backoff; other API errors fail the game visibly.
 
 **The entity drives its own game.** `decide` ends each attempt with
 `ctx.tellSelf({ tag: "attempt" })`, and `onRecoveryComplete` re-issues one if a
@@ -153,7 +158,10 @@ This is the F4 lesson: pinning only the table would leave the journal saying
 `empowerment` while the code behind that name had changed underneath, and no
 reader could tell which prior produced a run. The hashes are provenance markers,
 not semantic versions — reformatting a policy changes its hash without changing
-its behaviour, which is the safe direction to be wrong in.
+its behaviour. The policy marker hashes the function body, not transitive
+dependencies or closure values. Recovery rejects a mismatched marker, world or
+prior; it does not restore historical code. Model version and shortlist size
+are recorded at game start, and each model request includes its full question.
 
 **State is JSON-safe by construction.** Arrays and plain objects, no `Map` or
 `Set` anywhere in `GameState`. That is the F9/F10 defect — a `Map` in aggregate
@@ -216,6 +224,8 @@ pnpm test                                  # determinism
 pnpm run bench                             # two-arm bench -> results-alchemy.json
 pnpm run q4                                # do evaluators agree with the truth?
 pnpm run bench --seed-from-humans          # memory arm starts from played sessions
+pnpm run bench:semantic 3 158              # live TypeSafe, three arms
+pnpm run bench:semantic --replay           # verify saved report, zero API calls
 ```
 
 Playing it yourself is not a novelty: it produces a human number under exactly
@@ -239,12 +249,63 @@ sessions, and is **not committed**. Two independent dumps were cross-checked bef
 3,393 of 3,426 edges. The 720-element table is the working one; it matches the
 element count in the Brändle dataset, which keeps the human figure comparable.
 
+## TypeSafe experiment
+
+Put `TYPESAFE_API_KEY` (or `ALCHEMY_API_KEY`) in `.env`; only the live model
+command loads it. Requires Node 22+. The integration uses native `fetch`, the
+[HTTP API](https://docs.typesafe.ai/api), and the pinned `jev-1.13.0` model.
+No SDK or additional dependency is required.
+
+Each turn takes the top 12 legal, untried pairs from the empowerment policy.
+One request asks an independent Noul question per pair: would it produce an
+element outside the current inventory? The highest probability wins; ties keep
+the original shortlist order. The model sees the inventory and candidates,
+never the recipe table. Edit the question in `src/judge.ts`.
+
+Three arms use matching seeds and attempt budgets: model without memory, model
+with journal-derived memory between games, and model without memory on shuffled
+names. Shuffling fixes the four starting elements so reachability is preserved.
+Tests verify that the heuristic gets identical discovery counts in both worlds.
+
+`results-semantic.json` records game scores, correlation and Brier error against
+the true outcome of **every** shortlisted pair, the shortlist's oracle ceiling,
+and the unreranked first candidate's hit rate on those same situations. This
+separates candidate coverage from ranking quality. The live trajectories differ;
+same-shortlist metrics compare decisions with the inputs held fixed.
+
+Request counts, token usage, request latency and journal bytes are included. Estimated
+cost uses the [published input-token price](https://docs.typesafe.ai/models)
+of $0.042/M tokens; it is not an invoice. Timestamped journals remain under the
+ignored `data/` directory. A fresh API call need not reproduce a previous answer;
+offline replay uses recorded responses and verifies the resulting actions,
+outcomes, state invariants and report without inference. It is not a simulation
+of a different policy's entire future trajectory.
+
+Measured on 2026-09-19, seeds 1–3, 158 attempts per game:
+
+| Policy | Elements per game | Mean |
+|---|---|---:|
+| Empowerment | 43, 43, 43 | 43.0 |
+| Empowerment + memory | 43, 54, 58 | 51.7 |
+| TypeSafe | 39, 38, 40 | 39.0 |
+| TypeSafe + memory | 38, 49, 54 | 47.0 |
+| TypeSafe, shuffled names | 43, 43, 42 | 42.7 |
+
+Memory baseline uses the matching first three games of `results-alchemy.json`.
+The model run used 1,422 requests, with estimated input cost **$0.0735**.
+All three journals reproduced `results-semantic.json` with zero API calls.
+
+This question/model/shortlist combination did **not** improve the agent. Without
+memory, a useful pair was available on 98.5% of shortlists, but the model picked
+one on 22.2%; the first heuristic candidate succeeded on 27.2% of those same
+states. Its scores correlated with truth at only r = 0.061. Shuffled names also
+scored higher than real names. These three seeds do not establish general model
+performance, but they provide no evidence of useful semantic ranking here.
+
 ## Not yet here
 
-- A semantic judge over shortlisted pairs (needs a model). The Q4 control above
-  is the harness that would tell you whether it is worth its cost.
-- The name-shuffling ablation, wired but unused: it only means something once a
-  judge exists, since it tests whether the judge is using semantics at all.
+- Evidence that a model improves this task across a larger, held-out seed set.
+  The live bench measures this; adding a model does not guarantee improvement.
 - An attempt budget spent through an external ledger, which is how this bench
   would exercise exactly-once effects. Stage 2 has landed upstream, so this is
   now implementable; it duplicates the agent bench's `R4` in shape, so it is

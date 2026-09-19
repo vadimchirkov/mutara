@@ -32,6 +32,11 @@ describe("GroundTruth evaluator", () => {
 
   it("scores an unparseable answer 0 rather than throwing", async () => {
     expect(await score(truth, "", situation(["water", "fire"]))).toBe(0);
+    expect(await score(truth, "fire + water + earth", situation(["water", "fire"]))).toBe(0);
+    expect(await score(truth, "fire + water", situation(["water"]))).toBe(0);
+    const repeated = JSON.parse(situation(["water", "fire"]));
+    repeated.tried = ["fire + water"];
+    expect(await score(truth, "fire + water", JSON.stringify(repeated))).toBe(0);
   });
 });
 
