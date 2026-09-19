@@ -12,9 +12,9 @@
 
 import { writeFileSync } from "node:fs";
 import { loadTable } from "./game/table.js";
-import { policies, type Memory } from "./game/policies.js";
+import { policies } from "./game/policies.js";
 import { freshDb, harness } from "./harness.js";
-import { emptyMemory, journalBytes, projectMemory, readJournal } from "./memory.js";
+import { emptyMemory, journalBytes, mergeMemory, projectMemory, readJournal } from "./memory.js";
 import { baselines, HUMAN_MEDIAN } from "./offline.js";
 import { loadSessions, memoryFromSessions, sessionStats } from "./sessions.js";
 import type { AlchemyDeps } from "./aggregate.js";
@@ -42,8 +42,9 @@ interface Arm {
 const humanSessions = loadSessions();
 const humanSeed = args.includes("--seed-from-humans");
 
+const table = loadTable();
+
 async function arm(memory: boolean): Promise<Arm> {
-  const table = loadTable();
   const path = freshDb(new URL(`../data/bench-${memory ? "mem" : "blind"}.db`, import.meta.url).pathname);
   // `deps.memory` is read on every decide, so replacing it between games is how
   // the prior grows. Nothing else differs between the two arms.
@@ -54,7 +55,7 @@ async function arm(memory: boolean): Promise<Arm> {
   const seed = memory && humanSeed ? memoryFromSessions(humanSessions) : undefined;
 
   for (let g = 0; g < GAMES; g++) {
-    deps.memory = memory ? merge(projectMemory(readJournal(path)), seed) : emptyMemory();
+    deps.memory = memory ? mergeMemory(projectMemory(readJournal(path)), seed) : emptyMemory();
     const state = await h.play(`g${g}`, g + 1, POLICY, ATTEMPTS);
     discoveries.push(state?.known.length ?? 0);
   }
@@ -72,18 +73,6 @@ async function arm(memory: boolean): Promise<Arm> {
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
-/** Union of two priors. Both are derived, so nothing is lost by rebuilding. */
-function merge(a: Memory, b?: Memory): Memory {
-  if (!b) return a;
-  const wins = new Map(a.wins);
-  for (const [k, v] of b.wins) wins.set(k, (wins.get(k) ?? 0) + v);
-  return {
-    deadPairs: new Set([...a.deadPairs, ...b.deadPairs]),
-    productive: new Set([...a.productive, ...b.productive]),
-    wins,
-  };
-}
-
 const blind = await arm(false);
 const remembering = await arm(true);
 const base = baselines(ATTEMPTS, 20);
@@ -91,7 +80,7 @@ const base = baselines(ATTEMPTS, 20);
 const results = {
   generatedAt: new Date().toISOString(),
   protocol: { games: GAMES, attempts: ATTEMPTS, policy: POLICY, humanMedian: HUMAN_MEDIAN },
-  table: { hash: loadTable().hash, elements: loadTable().elements.length },
+  table: { hash: table.hash, elements: table.elements.length },
   offlineBaselines: base,
   humanSessions: humanSessions.map(sessionStats),
   seededFromHumans: humanSeed,

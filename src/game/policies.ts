@@ -8,18 +8,7 @@
 
 import { pairKey } from "./table.js";
 import type { Table } from "./table.js";
-
-export interface Memory {
-  /** Pairs an earlier run proved produce nothing at all. Never worth retrying. */
-  deadPairs: Set<string>;
-  /**
-   * Pairs an earlier run proved productive. Still worth retrying: a new game
-   * starts from the four base elements and has to re-derive its inventory.
-   */
-  productive: Set<string>;
-  /** Elements that yielded something new in earlier runs. */
-  wins: Map<string, number>;
-}
+import type { Memory } from "../memory.js";
 
 /** Outranks any plausible `wins` count, so known-productive pairs go first. */
 const PRODUCTIVE_BONUS = 1000;

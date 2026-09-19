@@ -10,7 +10,8 @@
 // direction to be wrong in.
 
 import { createHash } from "node:crypto";
-import type { Memory, Policy } from "./game/policies.js";
+import type { Policy } from "./game/policies.js";
+import type { Memory } from "./memory.js";
 
 const sha = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex").slice(0, 16)}`;
 

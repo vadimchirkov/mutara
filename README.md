@@ -61,7 +61,7 @@ src/game/table.ts      recipe table, content-hashed; name-shuffling ablation
 src/game/policies.ts   pair-selection policies, pure, journal-derived
 src/game/engine.ts     game state and the single pure step
 src/aggregate.ts       the game as a TEOB aggregate: one entity per game
-src/memory.ts          journal -> prior projection (the hypothesis, in one file)
+src/memory.ts          the Memory type and the one fold that builds it
 src/provenance.ts      hashes of the policy code and the prior, for the journal
 src/harness.ts         SQLite runtime wiring
 src/offline.ts         baselines with no runtime at all
@@ -116,12 +116,17 @@ its behaviour, which is the safe direction to be wrong in.
 state is silently erased by `JSON.stringify` at the first snapshot, and nothing
 detects it at recovery.
 
-**Memory is a projection, not a store.** `projectMemory` folds recorded attempts
+**Memory is a projection, not a store.** `foldAttempts` turns recorded attempts
 into a prior: pairs proved dead are skipped, pairs proved productive are
-preferred. It holds no state of its own and can be deleted and rebuilt from the
-journal at any time. Memory applies inside the shared pair-selection loop, so
+preferred. It holds no state of its own and can be deleted and rebuilt from
+history at any time. Memory applies inside the shared pair-selection loop, so
 "memory on/off" is one flag across every policy rather than a separate policy —
 which is what makes the two arms comparable.
+
+A journal and a hand-played session are the same corpus seen from two angles, so
+both go through that one fold. Anything that can name the pairs it tried and what
+they returned is a corpus; `projectMemory` and `memoryFromSessions` differ only
+in how they get there.
 
 Dead pairs are keyed on `results`, not `fresh`: freshness is relative to the run
 that recorded it, so a pair returning something that run already knew is

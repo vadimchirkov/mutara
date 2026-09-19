@@ -6,9 +6,8 @@
 // the same projection, over a different journal.
 
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { pairKey, BASE } from "./game/table.js";
-import { emptyMemory } from "./memory.js";
-import type { Memory } from "./game/policies.js";
+import { BASE } from "./game/table.js";
+import { foldAttempts, type Memory } from "./memory.js";
 
 export interface SessionAttempt {
   at: string;
@@ -66,19 +65,7 @@ export function sessionStats(s: Session): SessionStats {
   };
 }
 
-/** Same prior as `projectMemory`, built from human play instead of a journal. */
+/** Same fold as the journal's, over hand-played attempts instead of events. */
 export function memoryFromSessions(sessions: Session[]): Memory {
-  const m = emptyMemory();
-  for (const s of sessions) {
-    for (const a of s.attempts) {
-      const key = pairKey(a.a, a.b);
-      if (a.results.length === 0) {
-        m.deadPairs.add(key);
-        continue;
-      }
-      m.productive.add(key);
-      for (const el of [a.a, a.b]) m.wins.set(el, (m.wins.get(el) ?? 0) + 1);
-    }
-  }
-  return m;
+  return foldAttempts(sessions.flatMap((s) => s.attempts));
 }

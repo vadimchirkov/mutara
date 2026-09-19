@@ -7,7 +7,8 @@
 // state is silently destroyed by `JSON.stringify` at the first snapshot.
 
 import { BASE, pairKey, rng, type Table } from "./table.js";
-import type { GameView, Memory, Policy } from "./policies.js";
+import type { GameView, Policy } from "./policies.js";
+import type { Memory } from "../memory.js";
 
 export interface GameState {
   seed: number;

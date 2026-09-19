@@ -12,7 +12,8 @@ import { persist, done, reply } from "@lambda-house/teob-ts/core";
 import { categoryTypes } from "@lambda-house/teob-ts/core";
 import { tagCodec, objectCodec } from "@lambda-house/teob-ts/core";
 import type { Table } from "./game/table.js";
-import type { Memory, Policy } from "./game/policies.js";
+import type { Policy } from "./game/policies.js";
+import type { Memory } from "./memory.js";
 import { applyStep, initialGame, startGame, step, type GameState } from "./game/engine.js";
 import { hashMemory, hashPolicy } from "./provenance.js";
 
