@@ -37,6 +37,47 @@ memory arm rises monotonically and passes the human median at game three.
 
 Reproduce with `pnpm run bench`; the numbers land in `results-alchemy.json`.
 
+## The Q4 control: do evaluators agree with the truth?
+
+`AGENT-JOURNAL-HYPOTHESIS.md` settles Q4 in shape — "better" is not a scalar,
+and a reference-based evaluator marks any change a regression — but leaves it
+open in substance: *which* evaluators should a user reach for? The framework
+cannot answer that, because a support reply has no correct answer to check
+against. This bench can.
+
+Every recorded state is replayed and each candidate answers the same question —
+what would you pick here? — so nothing diverges into a different game. Alongside
+the usual evaluators, a `GroundTruth` one consults the recipe table.
+
+```
+candidate      GroundTruth  PriorPlausible      ExactMatch        Contains     LengthCheck
+recorded             0.258           0.654           1.000           0.175           1.000
+random               0.175           0.521           0.025           0.075           0.997
+oracle               1.000           0.625           0.058           0.133           0.996
+
+correlation with the truth, pooled over 360 scored answers:
+  PriorPlausible   r =  0.151
+  ExactMatch       r = -0.256
+  Contains         r =  0.067
+  LengthCheck      r = -0.034
+```
+
+`oracle` plays perfectly — 1.000 against the recorded run's 0.258 — and **every
+other evaluator scores it as a regression.** `ExactMatch` is the known trap, but
+the reference-free ones fail too, and `ExactMatch` is worse than useless:
+negatively correlated with being right.
+
+The interesting one is `PriorPlausible`, which is what a reasonable rubric judge
+looks like — reference-free, never reads the table, rewards pairs whose elements
+have produced before. It still only reaches r = 0.151. So "reference-free" is not
+the property that makes an evaluator safe, and an evaluator that does not encode
+the task still emits a confident number.
+
+Which is the point: on a corpus with ground truth you can *catch* that. Run
+`pnpm run q4`. The same method applies to any judge added later, including a
+TypeSafe `Score` — the question is not whether it produces numbers, but whether
+its numbers move with being right.
+
 ## What this measures, and what it does not
 
 The lift above is **recall, not generalisation**. By game ten the agent has
@@ -69,9 +110,12 @@ src/play.ts            the playable terminal game, and policy playback
 src/sessions.ts        hand-played sessions: record, load, project
 src/ui/sprites.ts      8x8 pixel sprites in half-block characters
 src/run.ts             the two-arm bench
+src/q4.ts              the Q4 control: dataset, truth evaluator, correlation
+src/q4-control.ts      its runner
 test/determinism.test.ts
 test/snapshot.test.ts
 test/aggregate-properties.test.ts
+test/q4.test.ts
 ```
 
 ## What was built on top of the engine
@@ -170,6 +214,7 @@ pnpm run play --policy empowerment --seed 7  # watch a policy instead
 pnpm run offline                           # baselines, no runtime, no API
 pnpm test                                  # determinism
 pnpm run bench                             # two-arm bench -> results-alchemy.json
+pnpm run q4                                # do evaluators agree with the truth?
 pnpm run bench --seed-from-humans          # memory arm starts from played sessions
 ```
 
@@ -196,11 +241,13 @@ element count in the Brändle dataset, which keeps the human figure comparable.
 
 ## Not yet here
 
-- A semantic judge over shortlisted pairs (needs a model).
+- A semantic judge over shortlisted pairs (needs a model). The Q4 control above
+  is the harness that would tell you whether it is worth its cost.
 - The name-shuffling ablation, wired but unused: it only means something once a
   judge exists, since it tests whether the judge is using semantics at all.
 - An attempt budget spent through an external ledger, which is how this bench
-  would exercise exactly-once effects. It duplicates the existing agent bench's
-  `R4` in shape, so it is last, and it waits for Stage 2.
+  would exercise exactly-once effects. Stage 2 has landed upstream, so this is
+  now implementable; it duplicates the agent bench's `R4` in shape, so it is
+  still last.
 - A real human baseline. The machinery records and projects sessions; what is
   missing is played games long enough to mean anything.

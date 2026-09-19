@@ -8,6 +8,7 @@
     "play": "tsx src/play.ts",
     "offline": "tsx src/offline.ts",
     "bench": "tsx src/run.ts",
+    "q4": "tsx src/q4-control.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
