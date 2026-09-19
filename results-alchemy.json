@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-18T19:58:35.245Z",
+  "generatedAt": "2026-09-19T09:02:50.697Z",
   "protocol": {
     "games": 10,
     "attempts": 158,
@@ -88,7 +88,7 @@
         43,
         43
       ],
-      "bytesPerGame": 14397,
+      "bytesPerGame": 14456,
       "events": 160,
       "mean": 42.9
     },
@@ -106,7 +106,7 @@
         79,
         79
       ],
-      "bytesPerGame": 14959,
+      "bytesPerGame": 15035,
       "events": 160,
       "mean": 66.2
     }

@@ -43,7 +43,12 @@ if (policyName) {
     console.error(`unknown policy ${policyName}; try: ${[...Object.keys(policies), "oracle"].join(", ")}`);
     process.exit(1);
   }
-  let s = startGame(initialGame(), Number(value("seed") ?? 1), policyName, budget, table.hash);
+  let s = startGame(initialGame(), {
+    seed: Number(value("seed") ?? 1),
+    policy: policyName,
+    attempts: budget,
+    tableHash: table.hash,
+  });
   for (let t = 0; t < budget; t++) {
     const st = step(s, table, policy);
     if (!st) break;

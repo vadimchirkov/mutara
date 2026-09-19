@@ -62,6 +62,7 @@ src/game/policies.ts   pair-selection policies, pure, journal-derived
 src/game/engine.ts     game state and the single pure step
 src/aggregate.ts       the game as a TEOB aggregate: one entity per game
 src/memory.ts          journal -> prior projection (the hypothesis, in one file)
+src/provenance.ts      hashes of the policy code and the prior, for the journal
 src/harness.ts         SQLite runtime wiring
 src/offline.ts         baselines with no runtime at all
 src/play.ts            the playable terminal game, and policy playback
@@ -69,6 +70,8 @@ src/sessions.ts        hand-played sessions: record, load, project
 src/ui/sprites.ts      8x8 pixel sprites in half-block characters
 src/run.ts             the two-arm bench
 test/determinism.test.ts
+test/snapshot.test.ts
+test/aggregate-properties.test.ts
 ```
 
 ## What was built on top of the engine
@@ -88,10 +91,25 @@ runs on today's framework instead of waiting for effect kinds (Stage 2 of the
 roadmap). The judge, when it arrives, will be the first effect in the system —
 and the first thing that needs at-most-once handling.
 
-**The journal pins its world.** `game_started` carries a `sha256` of the recipe
-table. This is the F4 lesson applied from the start: if the table changed and the
-event did not record which one was in play, a replayed run would be
-reinterpreted under a world it never saw.
+**The entity drives its own game.** `decide` ends each attempt with
+`ctx.tellSelf({ tag: "attempt" })`, and `onRecoveryComplete` re-issues one if a
+recovered game is still `playing`. The loop used to live in the harness, which
+meant a game interrupted by a restart sat in `playing` forever — the F7/F11
+failure, one level down. The workflow here is "repeat until the budget is spent",
+which is small enough to belong in the aggregate rather than above it.
+
+Recovery only works because the harness calls `runtime.start()`:
+`recoverEntitiesOnStart` wakes dormant entities at start, and entities are
+otherwise created lazily, so without that call the interrupted game is never
+woken and `onRecoveryComplete` never runs.
+
+**The journal pins its decision inputs.** `game_started` carries a `sha256` of
+the recipe table, of the policy's code, and of the prior the run started from.
+This is the F4 lesson: pinning only the table would leave the journal saying
+`empowerment` while the code behind that name had changed underneath, and no
+reader could tell which prior produced a run. The hashes are provenance markers,
+not semantic versions — reformatting a policy changes its hash without changing
+its behaviour, which is the safe direction to be wrong in.
 
 **State is JSON-safe by construction.** Arrays and plain objects, no `Map` or
 `Set` anywhere in `GameState`. That is the F9/F10 defect — a `Map` in aggregate
@@ -108,6 +126,12 @@ which is what makes the two arms comparable.
 Dead pairs are keyed on `results`, not `fresh`: freshness is relative to the run
 that recorded it, so a pair returning something that run already knew is
 productive, not dead.
+
+**Invariants are declared and checked against recorded history.** Three of them —
+no duplicate discoveries, one tried pair per attempt, attempts within budget —
+run through the framework's own `replayAndVerify` over a real journal rather than
+a checker written here. A deliberately failing invariant is asserted too, so a
+green suite cannot mean "invariants are never evaluated".
 
 **Determinism is tested, not assumed.** `test/determinism.test.ts` asserts that
 two runs of one seed produce a byte-identical journal, that state is a pure fold,

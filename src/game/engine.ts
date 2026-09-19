@@ -14,6 +14,9 @@ export interface GameState {
   policy: string;
   attempts: number;
   tableHash: string;
+  /** Provenance of the decision inputs; see src/provenance.ts. */
+  policyHash: string;
+  memoryHash: string;
   t: number;
   known: string[];
   tried: string[];
@@ -27,6 +30,8 @@ export const initialGame = (): GameState => ({
   policy: "random",
   attempts: 0,
   tableHash: "",
+  policyHash: "",
+  memoryHash: "none",
   t: 0,
   known: [],
   tried: [],
@@ -91,14 +96,24 @@ export function applyStep(s: GameState, st: Step & { t: number }): GameState {
   };
 }
 
-export function startGame(
-  s: GameState,
-  seed: number,
-  policy: string,
-  attempts: number,
-  tableHash: string,
-): GameState {
-  return { ...initialGame(), seed, policy, attempts, tableHash, known: [...BASE], status: "playing" };
+export interface GameStart {
+  seed: number;
+  policy: string;
+  attempts: number;
+  tableHash: string;
+  policyHash?: string;
+  memoryHash?: string;
+}
+
+export function startGame(_s: GameState, start: GameStart): GameState {
+  return {
+    ...initialGame(),
+    ...start,
+    policyHash: start.policyHash ?? "",
+    memoryHash: start.memoryHash ?? "none",
+    known: [...BASE],
+    status: "playing",
+  };
 }
 
 /** Play a whole game in process, with no runtime. The offline reference. */
@@ -109,7 +124,7 @@ export function playOffline(
   attempts: number,
   memory?: Memory,
 ): GameState {
-  let s = startGame(initialGame(), seed, "offline", attempts, table.hash);
+  let s = startGame(initialGame(), { seed, policy: "offline", attempts, tableHash: table.hash });
   for (let t = 0; t < attempts; t++) {
     const st = step(s, table, policy, memory);
     if (!st) break;

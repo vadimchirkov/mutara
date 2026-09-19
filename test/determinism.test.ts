@@ -57,7 +57,7 @@ describe("replay determinism", () => {
     for (const row of readJournal(path, "g1")) {
       const e = JSON.parse(row.payload) as AlchemyEvent;
       if (e.tag === "game_started") {
-        folded = startGame(folded, e.seed, e.policy, e.attempts, e.tableHash);
+        folded = startGame(folded, e);
       } else if (e.tag === "pair_tried") {
         folded = applyStep(folded, e);
       } else {

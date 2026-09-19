@@ -1,4 +1,8 @@
 // Minimal SQLite harness: one runtime, one entity per game.
+//
+// The game drives itself once started, so this only starts it and waits for the
+// terminal event. `onPersisted` fires synchronously after every journal write,
+// which is the runtime's own completion signal — no polling.
 
 import { existsSync, rmSync } from "node:fs";
 import { registration } from "@lambda-house/teob-ts/inmem";
@@ -19,29 +23,84 @@ export function freshDb(path: string): string {
 }
 
 export interface Harness {
+  /** Start a game and return immediately; the entity drives itself from here. */
+  start(id: string, seed: number, policy: string, attempts: number): Promise<void>;
+  waitFinished(id: string, timeoutMs?: number): Promise<void>;
+  state(id: string): Promise<GameState | undefined>;
+  /** start + waitFinished + state, which is what every caller but a crash wants. */
   play(id: string, seed: number, policy: string, attempts: number): Promise<GameState | undefined>;
   close(): Promise<void>;
 }
 
-export function harness(db: string, deps: AlchemyDeps): Harness {
-  const { runtime } = createSqliteRuntime({ path: db, askTimeoutMs: 10_000 }, [
-    registration(createAlchemyAggregate(deps), alchemyEventCodec, alchemyStateCodec),
-  ]);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  const ask = async (id: string, cmd: Parameters<typeof runtime.ask>[1]) =>
-    runtime.ask(EntityId(id), cmd, alchemyCategory);
+export function harness(db: string, deps: AlchemyDeps, timeoutMs = 30_000): Harness {
+  const finished = new Set<string>();
+  const waiters = new Map<string, () => void>();
+
+  const { runtime } = createSqliteRuntime(
+    {
+      path: db,
+      askTimeoutMs: 10_000,
+      recoverEntitiesOnStart: true,
+      onPersisted: (b) => {
+        for (const r of b.records) {
+          if (r.manifest !== "game_finished") continue;
+          finished.add(b.entityId);
+          waiters.get(b.entityId)?.();
+          waiters.delete(b.entityId);
+        }
+      },
+    },
+    [registration(createAlchemyAggregate(deps), alchemyEventCodec, alchemyStateCodec)],
+  );
+
+  // `recoverEntitiesOnStart` only wakes dormant entities when `start()` is
+  // called — without it an interrupted game stays asleep and never resumes.
+  const started = runtime.start();
+
+  async function state(id: string) {
+    await started;
+    const r = await runtime.ask(EntityId(id), { tag: "get_state" }, alchemyCategory);
+    return r.ok && r.value.reply?.tag === "state" ? r.value.reply.state : undefined;
+  }
 
   return {
-    async play(id, seed, policy, attempts) {
+    state,
+
+    async start(id, seed, policy, attempts) {
+      await started;
       await runtime.tell(EntityId(id), { tag: "start_game", seed, policy, attempts }, alchemyCategory);
-      // One command per attempt: every step is its own journal entry, which is
-      // the point — the run is readable back as a sequence of decisions.
-      for (let i = 0; i < attempts; i++) {
-        await runtime.tell(EntityId(id), { tag: "attempt" }, alchemyCategory);
-      }
-      const r = await ask(id, { tag: "get_state" });
-      return r.ok && r.value.reply?.tag === "state" ? r.value.reply.state : undefined;
     },
+
+    async waitFinished(id, ms = timeoutMs) {
+      await started;
+      if (finished.has(id)) return;
+      const done = new Promise<void>((res) => waiters.set(id, res));
+      await Promise.race([
+        done,
+        sleep(ms).then(() => {
+          throw new Error(`game ${id} did not finish in ${ms}ms`);
+        }),
+      ]);
+    },
+
+    async play(id, seed, policy, attempts) {
+      await started;
+      if (attempts === 0) return state(id); // reload-only, used by the snapshot test
+      const done = new Promise<void>((res) => waiters.set(id, res));
+      await runtime.tell(EntityId(id), { tag: "start_game", seed, policy, attempts }, alchemyCategory);
+      if (!finished.has(id)) {
+        await Promise.race([
+          done,
+          sleep(timeoutMs).then(() => {
+            throw new Error(`game ${id} did not finish in ${timeoutMs}ms`);
+          }),
+        ]);
+      }
+      return state(id);
+    },
+
     async close() {
       await runtime.shutdown();
     },
