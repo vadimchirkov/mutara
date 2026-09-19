@@ -9,6 +9,8 @@
     "offline": "tsx src/offline.ts",
     "bench": "tsx src/run.ts",
     "bench:semantic": "tsx src/semantic-bench.ts",
+    "bench:learning": "tsx src/learning/bench.ts",
+    "bench:components": "tsx src/learning/bench.ts --components",
     "q4": "tsx src/q4-control.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

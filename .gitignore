@@ -4,6 +4,7 @@ dist/
 .DS_Store
 .env
 .env.*
+/graft/.cache/
 
 # Recipe tables are third-party game data — private, never committed.
 data/

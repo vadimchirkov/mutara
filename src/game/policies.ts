@@ -24,10 +24,13 @@ export interface GameView {
   t: number;
 }
 
-export type Policy = (v: GameView, rand: () => number) => [string, string] | null;
+export type Policy = ((v: GameView, rand: () => number) => [string, string] | null) & {
+  /** Content identity for parameterized policies whose closures look identical. */
+  versionId?: string;
+};
 
 /** Shared driver: score every untried pair, take the argmax, random tiebreak. */
-function pick(v: GameView, rand: () => number, score: (a: string, b: string) => number) {
+export function pick(v: GameView, rand: () => number, score: (a: string, b: string) => number) {
   let best: [string, string] | null = null;
   let bestScore = -Infinity;
   for (let i = 0; i < v.known.length; i++) {

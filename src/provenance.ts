@@ -16,7 +16,7 @@ import type { Memory } from "./memory.js";
 const sha = (s: string) => `sha256:${createHash("sha256").update(s).digest("hex").slice(0, 16)}`;
 
 export function hashPolicy(policy: Policy): string {
-  return sha(String(policy));
+  return sha(String(policy) + (policy.versionId ? `\n${policy.versionId}` : ""));
 }
 
 /** Empty priors hash to "none" so a blind run reads as blind at a glance. */
