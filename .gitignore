@@ -2,6 +2,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+.env
+.env.*
 
 # Recipe tables are third-party game data — private, never committed.
 data/

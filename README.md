@@ -119,21 +119,39 @@ journal compares equal to itself and would pass vacuously.
 journal-derived prior. `oracle` deliberately breaks this and is labelled a
 ceiling rather than a baseline.
 
+**A person is a player, not a citation.** The terminal game records every attempt
+in the same shape the agent produces — pair, results, what was fresh, whether it
+repeated — and `memoryFromSessions` projects those recordings into the same prior
+the journal produces. So human play is a corpus the agent can start from
+(`--seed-from-humans`), and a played session is a baseline measured under this
+protocol rather than quoted from a paper. Repeated pairs still cost an attempt,
+because they cost a human one.
+
+The five sessions in `data/sessions/` are UI smoke tests — ten attempts between
+them — so they move the memory arm by 0.3 elements and prove only that the wiring
+works. A real human baseline needs someone to actually sit down and play.
+
 ## Development
 
 ```bash
 pnpm install
-pnpm run play                 # play it yourself, 158 attempts
-pnpm run play empowerment 7   # watch a policy play, seed 7
-pnpm run offline              # baselines, no runtime, no API
-pnpm test                     # determinism
-pnpm run bench                # two-arm bench -> results-alchemy.json
+pnpm run play                              # play it yourself, 158 attempts
+pnpm run play --budget 60 --assist         # shorter, hide pairs already tried
+pnpm run play --policy empowerment --seed 7  # watch a policy instead
+pnpm run offline                           # baselines, no runtime, no API
+pnpm test                                  # determinism
+pnpm run bench                             # two-arm bench -> results-alchemy.json
+pnpm run bench --seed-from-humans          # memory arm starts from played sessions
 ```
 
 Playing it yourself is not a novelty: it produces a human number under exactly
 this protocol and this table, which is the controlled comparison the quoted 51
 is not. `play` uses the offline engine and writes no journal — use `bench` for
 those.
+
+`--assist` hides pairs you have already tried. It is off by default on purpose:
+agents track that for free, the humans in the reference study did not, and
+turning it on quietly makes the two numbers incomparable.
 
 `@lambda-house/teob-ts` is linked from a sibling checkout (`link:../teob-ts`) so
 framework changes are visible without publishing. Switch to a version or a
@@ -142,8 +160,8 @@ bench, pinning by SHA is a feature — results stay tied to an exact commit.
 
 ## Data
 
-`data/` holds recipe tables scraped from a commercial game and is **not
-committed**. Two independent dumps were cross-checked before use and agreed on
+`data/` holds recipe tables scraped from a commercial game, plus recorded play
+sessions, and is **not committed**. Two independent dumps were cross-checked before use and agreed on
 3,393 of 3,426 edges. The 720-element table is the working one; it matches the
 element count in the Brändle dataset, which keeps the human figure comparable.
 
@@ -155,3 +173,5 @@ element count in the Brändle dataset, which keeps the human figure comparable.
 - An attempt budget spent through an external ledger, which is how this bench
   would exercise exactly-once effects. It duplicates the existing agent bench's
   `R4` in shape, so it is last, and it waits for Stage 2.
+- A real human baseline. The machinery records and projects sessions; what is
+  missing is played games long enough to mean anything.
