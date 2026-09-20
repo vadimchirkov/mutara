@@ -40,7 +40,6 @@ export function harness(db: string, deps: AlchemyDeps, timeoutMs = 30_000): Harn
     {
       path: db,
       askTimeoutMs: 10_000,
-      recoverEntitiesOnStart: true,
       onPersisted: (b) => {
         for (const r of b.records) {
           if (r.manifest !== "game_finished" && r.manifest !== "game_failed") continue;
@@ -53,8 +52,7 @@ export function harness(db: string, deps: AlchemyDeps, timeoutMs = 30_000): Harn
     [registration(createAlchemyAggregate(deps), alchemyEventCodec, alchemyStateCodec)],
   );
 
-  // `recoverEntitiesOnStart` only wakes dormant entities when `start()` is
-  // called — without it an interrupted game stays asleep and never resumes.
+  // TEOB recovers each persisted entity when it is first addressed.
   const started = runtime.start();
 
   async function state(id: string) {
@@ -71,8 +69,8 @@ export function harness(db: string, deps: AlchemyDeps, timeoutMs = 30_000): Harn
   }
 
   async function waitFinished(id: string, ms = timeoutMs) {
-    await started;
-    if (finished.has(id)) return;
+    const current = await state(id); // address the entity to activate recovery
+    if (current?.status === "finished" || current?.status === "failed" || finished.has(id)) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       await new Promise<void>((resolve, reject) => {

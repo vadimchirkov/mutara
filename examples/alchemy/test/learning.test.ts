@@ -12,6 +12,9 @@ import { hashPolicy } from "../src/provenance.js";
 import { INITIAL_WEIGHTS, strategyVersion, snapshotMemory, weightedPolicy, proposers, availableFeatures, availableConditions, type Proposer, type Component } from "../src/learning/strategy.js";
 import { bootstrap95 } from "../src/learning/statistics.js";
 import { alchemyEvaluator } from "../src/learning/alchemy.js";
+import { coreId } from "mutara";
+import { digest } from "mutara";
+import { implementation } from "../src/learning/strategy.js";
 import { createExperimentAggregate, decideCandidate, experimentHarness,
   type EpisodeResult, type ExperimentPlan, type Evaluator, type ExperimentEvent } from "../src/learning/experiment.js";
 
@@ -155,7 +158,8 @@ describe("TEOB experiment loop", () => {
     const db = path("loop");
     let calls = 0;
     const h = experimentHarness(db, async (v, seeds, p) => {
-      expect(events(db).at(-1)?.tag).toBe("candidate_proposed");
+      expect(events(db).at(-1)?.tag).toBe("execution_requested");
+      expect(events(db).some((e) => e.tag === "candidate_proposed")).toBe(true);
       expect(p.memory.deadPairs).toEqual([]);
       p.memory.deadPairs.push("mutation must not escape");
       calls++;
@@ -189,7 +193,7 @@ describe("TEOB experiment loop", () => {
     await first.close();
     const recorded = events(db).find((e) => e.tag === "candidate_proposed")!;
     const sqlite = new Database(db);
-    sqlite.prepare("DELETE FROM journal WHERE manifest = 'experiment_failed'").run();
+    sqlite.prepare("DELETE FROM journal WHERE manifest = 'experiment_blocked'").run();
     sqlite.close(); // durable prefix of a crash before evaluation was committed
     const proposer = vi.fn(propose);
     const second = experimentHarness(db, synthetic, proposer);
@@ -204,13 +208,16 @@ describe("TEOB experiment loop", () => {
   it("ignores duplicate work/completions and refuses a changed implementation", async () => {
     const aggregate = createExperimentAggregate(synthetic);
     const started = aggregate.apply(aggregate.initial(EntityId("x")), {
-      tag: "experiment_started", plan: plan(), implementation: { files: {} },
+      tag: "experiment_started", plan: plan(), implementation, coreId,
+      adapterId: digest({ implementation, recovery: "repeatable" }),
     });
     const candidate = propose(initial, 0, 7);
-    const pending = aggregate.apply(started, { tag: "candidate_proposed", round: 0, candidate });
+    const proposed = aggregate.apply(started, { tag: "candidate_proposed", round: 0, candidate,
+      jobs: [{ id: "x/0/0", key: "baselineTraining", input: {}, costLimit: 0 }] });
+    const pending = aggregate.apply(proposed, { tag: "execution_requested", jobId: "x/0/0" });
     expect(await aggregate.decide(pending, { tag: "advance" }, {} as never)).toEqual({ tag: "Done" });
-    expect(await aggregate.decide(pending, { tag: "evaluated", round: 1, candidateId: candidate.id,
-      evaluation: {} as never }, {} as never)).toEqual({ tag: "Done" });
+    expect(await aggregate.decide(pending, { tag: "received", jobId: "other",
+      receipt: { output: {}, cost: 0 } }, {} as never)).toEqual({ tag: "Done" });
     const changed = { ...started, plan: { ...started.plan!, initial: { ...initial, implementationId: "old-code" } } };
     expect(await aggregate.decide(changed, { tag: "advance", resume: true }, {} as never))
       .toMatchObject({ tag: "Persist", events: [{ tag: "experiment_failed" }] });
@@ -220,7 +227,7 @@ describe("TEOB experiment loop", () => {
     const db = path("snapshot");
     const evaluate: Evaluator = async (_v, seeds) => episodes(seeds, 10);
     const first = experimentHarness(db, evaluate);
-    await first.start("experiment", plan({ rounds: 51 })); // 104 events
+    await first.start("experiment", plan({ rounds: 51 })); // exceeds the runtime's snapshot threshold
     const live = await first.wait("experiment");
     await first.close();
     const sqlite = new Database(db, { readonly: true });

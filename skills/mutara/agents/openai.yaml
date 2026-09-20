@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mutara"
+  short_description: "Integrate measured self-learning into agent projects"
+  default_prompt: "Use $mutara to connect measured strategy improvement to this project and verify the integration."

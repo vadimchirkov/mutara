@@ -3,7 +3,6 @@
 //   pnpm run q4 [attempts]
 
 import {
-  compareReports,
   contains,
   evaluateDataset,
   exactMatch,
@@ -89,13 +88,14 @@ for (const n of names.filter((n) => n !== "GroundTruth")) {
   console.log(`  ${n.padEnd(W)} r = ${correlation(pooled.get(n)!, truthScores).toFixed(3)}`);
 }
 
-// The framework's own pairwise comparison, baseline = the recorded run.
+// Pairwise mean differences, baseline = the recorded run.
 const base = reports.get("recorded")!;
 console.log(`\ndeltas vs the recorded run (${BASELINE_POLICY}):`);
 for (const [name] of candidates.slice(1)) {
-  const cmp = compareReports(base, reports.get(name)!);
-  const truth = cmp.deltas.find((d) => d.evaluatorName === "GroundTruth")!;
-  const agree = cmp.deltas
+  const deltas = names.map((evaluatorName) => ({ evaluatorName,
+    delta: mean(reports.get(name)!, evaluatorName) - mean(base, evaluatorName) }));
+  const truth = deltas.find((d) => d.evaluatorName === "GroundTruth")!;
+  const agree = deltas
     .filter((d) => d.evaluatorName !== "GroundTruth")
     .map((d) => `${d.evaluatorName} ${d.delta >= 0 ? "+" : ""}${d.delta.toFixed(3)}` +
       `${Math.sign(d.delta) === Math.sign(truth.delta) || d.delta === 0 ? "" : "  <- disagrees with truth"}`);

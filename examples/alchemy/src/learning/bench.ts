@@ -13,6 +13,7 @@ import { createExperimentAggregate, decideCandidate, experimentHarness, mean,
   type ExperimentEvent, type ExperimentPlan, type ExperimentState, type EpisodeResult } from "./experiment.js";
 import { alchemyEvaluator } from "./alchemy.js";
 import { bootstrap95 } from "./statistics.js";
+import { coreId } from "mutara";
 
 const flags = process.argv.slice(2);
 const components = flags.includes("--components");
@@ -33,7 +34,7 @@ for (const [name, n, max] of [["repeats", repeats, 20], ["rounds", rounds, 100],
 }
 const methods: SearchMethod[] = components ? ["adaptive", "random", "components", "componentsRandom"] : ["adaptive", "random"];
 const protocol = { repeats, rounds, attempts, warmupGames: 3, trainingGames: 4, validationGames: 4,
-  testGames, minimumGain: 1, methods, seedBase: components ? 1_000_000 : 0, implementationId };
+  testGames, minimumGain: 1, methods, seedBase: components ? 1_000_000 : 0, implementationId, coreId };
 const dataDir = saved?.dataDir ?? new URL(`../../data/${components ? "components" : "learning"}-${Date.now()}`, import.meta.url).pathname;
 if (!replay) mkdirSync(dataDir, { recursive: true });
 if (saved && JSON.stringify(saved.protocol) !== JSON.stringify(protocol)) throw new Error("Restore the recorded implementation/protocol before replay");
@@ -58,6 +59,12 @@ async function recoverAndVerify(path: string, method: SearchMethod) {
         baselineValidation: await evaluate(state.champion, p.validationSeeds, p),
         candidateValidation: await evaluate(trial.candidate, p.validationSeeds, p),
       };
+      const runs = state.pending!.runs;
+      if (runs.length !== 4 || runs.some((r) => !r.requested || !r.receipt || !r.observation || r.receipt.cost !== 0 ||
+          JSON.stringify(r.receipt.output) !== JSON.stringify(r.observation.data)) ||
+          JSON.stringify(Object.fromEntries(runs.map((r) => [r.job.key, r.receipt!.output]))) !== JSON.stringify(actual)) {
+        throw new Error("Recorded job receipts differ from replay");
+      }
       if (JSON.stringify(actual) !== JSON.stringify(trial.evaluation) ||
           JSON.stringify(decideCandidate(actual, p)) !== JSON.stringify({ accepted: trial.accepted, reason: trial.reason })) {
         throw new Error("Recorded trial differs from replay");
