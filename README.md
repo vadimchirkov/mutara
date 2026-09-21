@@ -21,35 +21,18 @@ current strategy → candidate → execution → evaluation → accept / reject
 ## Use cases
 
 Mutara fits tasks where you can change a configuration, run comparable cases,
-and measure the outcome. These are integration ideas; the host supplies the
-runner, data and evaluator for each task.
+and measure the outcome. The host supplies the runner, data and evaluator.
 
 | Use case | What to tune | What to measure |
 |---|---|---|
-| Prompt selection | Instruction variants, examples, response templates | Task accuracy, instruction compliance, token use |
-| Retrieval-augmented generation (RAG) | Chunk size, overlap, top-k, reranking thresholds | Retrieval recall, answer correctness, citation support |
-| Search agents | Query templates, source selection, search depth | Relevant results, coverage, latency, request cost |
-| Tool use | Predefined tool sequences, routing thresholds, fallback policies | Task completion, invalid calls, execution cost |
-| Model routing | Model choices, escalation thresholds, generation settings | Quality, latency, cost per completed task |
-| Agent memory | Recall limits, recency weights, summary variants | Relevant recall, task success, context size |
-| Planning and multi-step tasks | Planning templates, step limits, verification frequency | Completion rate, wasted steps, recovery rate |
-| Coding agents | Repair prompts, context selection, test-selection policies | Held-out tests passed, regressions, execution time |
-| Structured extraction | Extraction prompts, parser variants, confidence thresholds | Field accuracy, schema validity, missing values |
-| Classification and triage | Decision thresholds, feature weights, routing rules | Precision, recall, false positives, abstentions |
-| Customer support | Retrieval settings, response policies, escalation thresholds | Resolution accuracy, unsupported claims, correct handoffs |
-| Summarization | Length limits, section templates, source-selection policies | Fact coverage, factual errors, compression ratio |
-| Translation and localization | Glossary variants, style prompts, context windows | Meaning preservation, terminology accuracy, reviewer scores |
-| Document processing | OCR settings, page segmentation, extraction pipelines | Character/field accuracy, throughput, cost |
-| Browser and workflow agents | Navigation policies, wait limits, retry strategies | Task completion, duplicate actions, elapsed time |
-| Recommendations and ranking | Ranking weights, retrieval depth, diversity penalties | Relevance on labeled cases, ranking quality, coverage |
-| Scheduling and resource allocation | Priority weights, batch sizes, dispatch heuristics | Throughput, deadline misses, resource use in simulation |
-| Games and simulations | Policy weights, exploration settings, component choices | Reward, success rate, transfer to unseen scenarios |
+| Prompt selection | Instruction variants, examples, templates | Accuracy, compliance, token use |
+| RAG | Chunk size, overlap, top-k, reranking | Recall, answer correctness, citations |
+| Tool use / model routing | Sequences, thresholds, fallback policies | Completion, cost, latency |
+| Games and simulations | Policy weights, components, exploration | Reward, win rate, transfer |
+| Coding agents | Repair prompts, context selection, test policies | Tests passed, regressions, time |
 
-Use the optimizer for numeric settings and predefined string choices. Use a
-custom adapter for generated strategies, delayed human feedback or mandatory
-quality gates. Weighted metrics allow tradeoffs; they cannot enforce a rule
-such as “reduce cost only if accuracy never drops.” Evaluate the selected
-configuration on separate held-out cases before applying it to the host.
+Similar pattern applies to extraction, classification, summarization,
+scheduling, browser agents, and other measurable tasks.
 
 ## Quick start
 
@@ -127,33 +110,11 @@ console.log(result.champion); // Plain configuration, e.g. { x: ... }
 console.log(result.totalTrials, result.executions, result.spent);
 ```
 
-Each trial evaluates the champion and candidate on `samplesPerTrial` paired
-cases. With 25 trials and the default one case, this example makes 50 executions.
-`history` contains each candidate's mean metrics, acceptance flag and reason.
-
-Reopen with the same ID, options and implementation to resume or read the result.
-Use a new ID for a different experiment. Trials are bounded to 1–100; there is no
-background loop. Keep `storage` for durable recovery; omitting it uses `:memory:`.
-This example proves wiring, not gains on an application task.
-
-The example explicitly uses `heuristic`, accepting positive mean gain without
-a statistical guarantee. The default is `bounded`: each metric needs fixed
-`bounds: { min, max }`, declared before evaluation. Set enough `samplesPerTrial`:
-the default of 1 cannot demonstrate a gain at the default confidence level.
-`execute(config, { id, sample, costLimit })` receives the same
-case index for baseline and candidate, with fresh indices each round. Map these
-indices to independent cases; reserve a separate final test set to measure the
-selected champion. Weights combine raw metric differences without normalization;
-they express tradeoffs, not hard quality constraints.
-
-Executors return `{ output: metrics, cost }`. Set `costLimit` per execution and
-`budget.cost` for paid work, and enforce limits in the executor. Recovery defaults
-to `manual`; use `idempotent` only when the executor deduplicates by the supplied
-ID. Pin executor, evaluator, data and dependency artifacts in `implementation`;
-function text alone cannot capture closures or external services.
+Reopen with the same ID and options to resume. Use a new ID for a different
+experiment. This example proves wiring, not gains on an application task.
 
 See the [optimizer contract and examples](skills/mutara/references/optimizer.md)
-for parameter types, defaults, cost planning, results and recovery.
+for parameter types, decision modes, cost planning, recovery and defaults.
 
 ## Customize the experiment
 
@@ -167,7 +128,7 @@ import { adapter, plan } from "./adapter.mjs";
 
 const learner = learnerHarness("./learning.db", adapter);
 try {
-  await learner.start("support-strategy-001", plan);
+  await learner.startOrResume("support-strategy-001", plan);
   const result = await learner.wait("support-strategy-001");
   console.log(result.champion.config);
 } finally {
@@ -175,10 +136,9 @@ try {
 }
 ```
 
-Use a new ID for each new experiment. To resume an existing one, open the same
-database and call `state(id)` or `wait(id)` without repeating `start`.
-Changing an experiment's champion does not change your application's
-configuration by itself.
+`startOrResume` starts a new experiment or resumes an existing one with the
+same ID. Use a new ID for a different experiment. Changing an experiment's
+champion does not change your application's configuration by itself.
 
 The adapter describes six things: strategy configuration, candidate
 generation, task execution, result evaluation, acceptance rule, and limits.
@@ -211,11 +171,25 @@ Example prompt:
 > Use $mutara. Connect strategy tuning to this agent. Compare the current and
 > new strategies on separate test tasks, show quality and cost.
 
+## Game starters
+
+Four games test different dimensions, all on the same scaffold. No changes to
+`src/` — the engine and optimizer are used as a library.
+
+| Game | Dimension | Result |
+|---|---|---|
+| [Tic-tac-toe](examples/tictactoe/) | MCTS tuning, component search, machine-invented features | 0.47 → 0.83 (component), 0.47 → 0.70 (machine dictionary) |
+| [Connect-4 5x5](examples/connect4/) | Transfer to a harder game, component search | 0.53 → 0.745 held-out |
+| [Pig](examples/pig/) | Decisions under chance (dice) | 0.47 → 0.755 held-out |
+| [Kuhn poker](examples/kuhn/) | Hidden information — **negative result**, then CFR-as-adapter | Greedy search plateaus; CFR through the engine converges to Nash |
+
+Each game's README has methodology, gate design, measured numbers, negative
+results, and ceiling analysis.
+
 ## Structure and checks
 
 - `src/` — library; public imports: `mutara`, `mutara/sqlite`, `mutara/optimizer`.
-- `examples/minimal.mjs` — minimal integration.
-- `examples/alchemy/` — the original game benchmark, its tests and reports.
+- `examples/` — game starters (tictactoe, connect4, pig, kuhn), alchemy benchmark, minimal integration.
 - `skills/mutara/` — portable skill and adapter template.
 - `test/` — library tests; `scripts/check-package.mjs` — clean install check.
 
@@ -224,20 +198,7 @@ pnpm typecheck
 pnpm test
 pnpm demo
 pnpm test:package
-
-# Alchemy: requires local private recipes examples/alchemy/data/cheater_la2.json
-pnpm bench:components 1 2 30 8 --output=examples/alchemy/data/results-package-smoke.json
-pnpm bench:components --replay --output=examples/alchemy/data/results-package-smoke.json
 ```
-
-`test:package` builds an archive, installs it in a separate temporary project,
-runs the copied adapter and optimizer, checks reopening, TypeScript imports
-and package contents.
-
-In the historical full Alchemy benchmark, component search yielded **74.54
-elements** versus **63.90** for the fixed strategy with memory. This is a
-single-task result; for a new application, improvement must be measured
-independently.
 
 ## Limitations
 
