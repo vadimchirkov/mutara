@@ -37,8 +37,33 @@ that gap — it needs co-adaptation (self-play) or equilibrium solving.
 Vanilla CFR, deterministic, 10000 iterations (~0.1 s). Measured:
 exploitability `0.0045` (≈ Nash), recovered policy matches the textbook
 α-family (P1 bluffs J ~0.2, value-bets K ~0.65, calls Q ~0.55 facing a bet).
-The gap `0.167 → 0.005` is real headroom that greedy search cannot take.
-CFR-in-the-loop is a different project, not a starter tweak.
+
+## CFR through the engine (`cfr.mjs`, `cfr-bench.mjs`)
+
+The gap above is closable without touching the core: regrets and the average
+strategy live inside the version (finite JSON, digest-pinned), so one engine
+round = one exact CFR iteration — `propose` does the update (sync,
+deterministic, pure), the engine contributes journaling, lineage, budgets and
+recovery. `assess` always accepts; the Nash approximation is the average
+strategy (`finalPolicy`), not the last policy.
+
+Two findings along the way, both kept in the code as comments:
+
+* The engine caps one experiment at 100 rounds, so the run is a 3-link
+  supervisor chain (`kuhn-cfr-v1-l1..l3`); regrets survive the handoff inside
+  the version.
+* The profile is read at infoset-visit time (textbook Neller–Lanctot form).
+  A frozen-profile variant was tried first and stalls at honest-level
+  exploitability (`0.167`); the visit-time form converges.
+
+```bash
+node examples/kuhn/cfr-bench.mjs ./examples/kuhn/cfr.db
+```
+
+Measured once (3 links × 100 rounds, ~0.2 s): 300 iterations, exploitability
+`0.0089` (hill-climb champion: `0.167`, direct CFR at 10000: `0.0045`),
+recovered policy matches the α-family. The Kuhn arc is closed both ways:
+greedy search plateaus, equilibrium solving converges — same contract.
 
 ## Bug found and fixed along the way
 

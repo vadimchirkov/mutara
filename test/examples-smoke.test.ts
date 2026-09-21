@@ -17,6 +17,8 @@ import * as pig from "../examples/pig/experiment.mjs";
 import * as c4 from "../examples/connect4/experiment.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as kuhn from "../examples/kuhn/experiment.mjs";
+// @ts-ignore — examples are untyped .mjs starters, imported deliberately.
+import * as kuhnCfr from "../examples/kuhn/cfr.mjs";
 
 function withDatabase(run: (storage: string) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "mutara-examples-smoke-"));
@@ -118,6 +120,23 @@ describe("game starter smoke", () => {
         expect(state.trials).toHaveLength(1);
         expect(state.executions).toBe(4);
         expect(state.champion?.id).toBeTypeOf("string");
+      } finally {
+        await h.close();
+      }
+    });
+  });
+
+  it("kuhn CFR adapter runs two iterations to finish", async () => {
+    await withDatabase(async (storage) => {
+      const h = learnerHarness(storage, kuhnCfr.adapter);
+      try {
+        const plan = kuhnCfr.buildCfrPlan({ rounds: 2 });
+        await h.start("kuhn-cfr-smoke", plan);
+        const state = await h.wait("kuhn-cfr-smoke");
+        expect(state.status).toBe("finished");
+        expect(state.trials).toHaveLength(2);
+        expect(state.executions).toBe(2);
+        expect((state.champion as unknown as { iter: number })?.iter).toBe(2);
       } finally {
         await h.close();
       }
