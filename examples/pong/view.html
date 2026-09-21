@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pong — watch it learn</title>
+<style>
+  body { background: #0b0e14; color: #c9d4e3; font-family: monospace; text-align: center; }
+  canvas { background: #11151d; border: 1px solid #2a3342; margin-top: 8px; }
+  #hud { margin-top: 8px; font-size: 14px; }
+  button { background: #1c2330; color: #c9d4e3; border: 1px solid #2a3342; padding: 4px 12px; margin: 0 4px; cursor: pointer; }
+  #curve { margin-top: 8px; }
+</style>
+</head>
+<body>
+<h3>PONG — <span id="mode">demo</span></h3>
+<canvas id="game" width="800" height="480"></canvas>
+<div id="hud">
+  <button id="pause">pause</button>
+  <button id="speed">speed ×1</button>
+  <button id="restart">restart</button>
+  <span id="score"></span>
+</div>
+<canvas id="curve" width="800" height="120"></canvas>
+<div id="stats"></div>
+<script>
+// Mirror of game.mjs physics (view-only copy; engine truth lives in game.mjs).
+const W = 100, H = 60, PH = 12, PS = 1.0, S = 8;
+let st;
+function reset() {
+  st = { x: 50, y: 30, vx: 1.2, vy: 0.3, px: 30, po: 30, sx: 0, so: 0, ax: 0, ao: 0 };
+}
+function policy(s, me) {
+  const p = me === "X" ? s.px : s.po;
+  const toward = me === "X" ? s.vx < 0 : s.vx > 0;
+  if (!toward) return 0;
+  const dy = s.y - p;
+  if (Math.abs(dy) < 1.5) return 0;
+  return dy > 0 ? 1 : -1;
+}
+function frame(f) {
+  if (f % 4 === 0) { st.ax = policy(st, "X"); st.ao = policy(st, "O"); }
+  st.px = Math.max(PH/2, Math.min(H-PH/2, st.px + st.ax*PS));
+  st.po = Math.max(PH/2, Math.min(H-PH/2, st.po + st.ao*PS));
+  st.x += st.vx; st.y += st.vy;
+  if (st.y < 0) { st.y = -st.y; st.vy = -st.vy; }
+  if (st.y > H) { st.y = 2*H - st.y; st.vy = -st.vy; }
+  const bounce = (p) => {
+    const off = Math.max(-1, Math.min(1, (st.y - p) / (PH/2)));
+    const sp = Math.min(2.6, Math.hypot(st.vx, st.vy) * 1.05);
+    const a = Math.max(-1.1, Math.min(1.1, off * 0.9));
+    return [sp * Math.cos(a), sp * Math.sin(a)];
+  };
+  if (st.vx < 0 && st.x <= 3 && st.x >= 0 && Math.abs(st.y - st.px) <= PH/2 + 1) {
+    [st.vx, st.vy] = bounce(st.px); st.vx = Math.abs(st.vx); st.x = 3;
+  }
+  if (st.vx > 0 && st.x >= 97 && st.x <= 100 && Math.abs(st.y - st.po) <= PH/2 + 1) {
+    [st.vx, st.vy] = bounce(st.po); st.vx = -Math.abs(st.vx); st.x = 97;
+  }
+  if (st.x < 0) { st.so++; st.x = 50; st.y = 30; st.vx = 1.2; st.vy = 0.3; }
+  if (st.x > W) { st.sx++; st.x = 50; st.y = 30; st.vx = -1.2; st.vy = -0.3; }
+}
+const cv = document.getElementById("game"), ctx = cv.getContext("2d");
+const cu = document.getElementById("curve"), cx2 = cu.getContext("2d");
+let paused = false, speed = 1, tick = 0, live = null, history = [];
+function draw() {
+  ctx.clearRect(0, 0, 800, 480);
+  ctx.fillStyle = "#2a3342";
+  for (let y = 0; y < 480; y += 16) ctx.fillRect(398, y, 2, 8);
+  ctx.fillStyle = "#7fd4ff";
+  ctx.fillRect(2*S-2, st.px*S-PH*S/2, 4, PH*S);
+  ctx.fillStyle = "#ffb35c";
+  ctx.fillRect(97*S-2, st.po*S-PH*S/2, 4, PH*S);
+  ctx.fillStyle = "#e8eef5";
+  ctx.beginPath(); ctx.arc(st.x*S, st.y*S, 6, 0, 7); ctx.fill();
+  ctx.font = "48px monospace"; ctx.fillStyle = "#c9d4e3";
+  ctx.fillText(st.sx, 330, 60); ctx.fillText(st.so, 450, 60);
+  document.getElementById("score").textContent = ` X ${st.sx} : ${st.so} O · frame ${tick}`;
+  // learning curve (live mode fills `history` with champion means)
+  cx2.clearRect(0, 0, 800, 120);
+  if (history.length > 1) {
+    cx2.strokeStyle = "#7fd4ff"; cx2.beginPath();
+    history.forEach((v, i) => {
+      const x = (i / (history.length - 1)) * 790 + 5, y = 115 - v * 100;
+      i ? cx2.lineTo(x, y) : cx2.moveTo(x, y);
+    });
+    cx2.stroke();
+    document.getElementById("stats").textContent =
+      `champion mean score: ${history[history.length-1].toFixed(3)} after ${history.length} trials`;
+  }
+}
+async function poll() {
+  try {
+    const r = await fetch("progress.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const p = await r.json();
+    if (p && p.history && p.history.length) {
+      document.getElementById("mode").textContent = "learning (live)";
+      history = p.history;
+    }
+  } catch { /* file:// or no trainer — stay in demo */ }
+}
+setInterval(poll, 1000);
+reset();
+setInterval(() => {
+  if (!paused) { for (let i = 0; i < speed; i++) { frame(tick++); if (st.sx >= 5 || st.so >= 5) { reset(); tick = 0; } } }
+  draw();
+}, 16);
+document.getElementById("pause").onclick = (e) => { paused = !paused; e.target.textContent = paused ? "resume" : "pause"; };
+document.getElementById("speed").onclick = (e) => { speed = speed >= 4 ? 1 : speed * 2; e.target.textContent = "speed ×" + speed; };
+document.getElementById("restart").onclick = () => { reset(); tick = 0; };
+</script>
+</body>
+</html>
