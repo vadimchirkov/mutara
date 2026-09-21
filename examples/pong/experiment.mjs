@@ -5,14 +5,22 @@ import { readFileSync } from "node:fs";
 import { initialState, step, isTerminal, winner, serve, rng } from "./game.mjs";
 import {
   implementation, checkVersion, initialVersion,
-  proposeComponents, versionMove, baselineMove,
+  proposeComponents, versionMove, baselineMove, mirrorState,
 } from "./strategy.mjs";
 
 const FRAME_SKIP = 4;
 const FRAME_CAP = 12000;
 
-function playGame(policy, sample) {
+// O plays the plan baseline: "deadband" tracker or a fixed version (mirrored).
+// Undefined means deadband (pre-baseline journals keep working).
+function opponentMove(baseline, state, rand) {
+  if (baseline === undefined || baseline === "deadband") return baselineMove(state);
+  return versionMove(baseline, mirrorState(state), rand);
+}
+
+function playGame(policy, sample, baseline = "deadband") {
   const randDecide = rng(((sample * 2654435761) ^ 0x1234abcd) | 0);
+  const randOpp = rng(((sample * 2654435761) ^ 0x9e3779b9) | 0);
   const randServe = rng(((sample * 2654435761) ^ 0x5678dcba) | 0);
   let state = initialState(randServe);
   let ax = 0;
@@ -20,7 +28,7 @@ function playGame(policy, sample) {
   for (let f = 0; f < FRAME_CAP; f++) {
     if (f % FRAME_SKIP === 0) {
       ax = policy(state, randDecide);
-      ao = baselineMove(state);
+      ao = opponentMove(baseline, state, randOpp);
     }
     state = step(state, ax, ao);
     if (state.scored) {
@@ -34,7 +42,8 @@ function playGame(policy, sample) {
 }
 
 const policyOf = (version) => (state, rand) => versionMove(version, state, rand);
-const evaluate = (version, seeds) => seeds.map((seed) => ({ seed, score: playGame(policyOf(version), seed) }));
+const evaluate = (version, seeds, baseline = "deadband") =>
+  seeds.map((seed) => ({ seed, score: playGame(policyOf(version), seed, baseline) }));
 
 const validSeeds = (s) => Array.isArray(s) && s.length > 0 && new Set(s).size === s.length && s.every(Number.isSafeInteger);
 
@@ -46,6 +55,7 @@ function validatePlan(p) {
     throw new Error("Invalid experiment plan or overlapping seed sets");
   }
   checkVersion(p.initial);
+  if (p.baseline !== undefined && p.baseline !== "deadband") checkVersion(p.baseline);
 }
 
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -80,15 +90,16 @@ export const adapter = {
   limits: (p) => ({ executions: p.rounds * 4, cost: 0 }),
   propose: (champion, history, p) => proposeComponents(champion, history.length, p.seed),
   jobs: (champion, candidate, p) => [
-    { key: "baselineTraining", input: { version: champion, seeds: p.trainingSeeds }, costLimit: 0 },
-    { key: "candidateTraining", input: { version: candidate, seeds: p.trainingSeeds }, costLimit: 0 },
-    { key: "baselineValidation", input: { version: champion, seeds: p.validationSeeds }, costLimit: 0 },
-    { key: "candidateValidation", input: { version: candidate, seeds: p.validationSeeds }, costLimit: 0 },
+    { key: "baselineTraining", input: { version: champion, seeds: p.trainingSeeds, baseline: p.baseline }, costLimit: 0 },
+    { key: "candidateTraining", input: { version: candidate, seeds: p.trainingSeeds, baseline: p.baseline }, costLimit: 0 },
+    { key: "baselineValidation", input: { version: champion, seeds: p.validationSeeds, baseline: p.baseline }, costLimit: 0 },
+    { key: "candidateValidation", input: { version: candidate, seeds: p.validationSeeds, baseline: p.baseline }, costLimit: 0 },
   ],
   async execute(job) {
-    const { version, seeds } = job.input;
+    const { version, seeds, baseline } = job.input;
     checkVersion(version);
-    return { output: evaluate(version, seeds), cost: 0 };
+    if (baseline !== undefined && baseline !== "deadband") checkVersion(baseline);
+    return { output: evaluate(version, seeds, baseline), cost: 0 };
   },
   grade: (_job, receipt) => ({ metrics: {}, data: receipt.output }),
   assess(runs, plan) {
@@ -97,10 +108,10 @@ export const adapter = {
   },
 };
 
-export function buildPlan({ rounds = 4, seed = 7919, minimumGain = 0.05, initial = initialVersion(), trainingSeeds, validationSeeds } = {}) {
+export function buildPlan({ rounds = 4, seed = 7919, minimumGain = 0.05, initial = initialVersion(), baseline = "deadband", trainingSeeds, validationSeeds } = {}) {
   trainingSeeds ??= Array.from({ length: 32 }, (_, i) => 101 + i);
   validationSeeds ??= Array.from({ length: 32 }, (_, i) => 1001 + i);
-  return { rounds, seed, trainingSeeds, validationSeeds, minimumGain, initial };
+  return { rounds, seed, trainingSeeds, validationSeeds, minimumGain, initial, baseline };
 }
 
 export { evaluate, playGame };

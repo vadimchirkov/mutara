@@ -88,12 +88,26 @@ function reset() {
 }
 function policy(s, me) {
   if (me === "X") return xPolicy(s);
-  const p = s.po;
-  const toward = s.vx > 0;
-  if (!toward) return 0;
-  const dy = s.y - p;
-  if (Math.abs(dy) < 1.5) return 0;
-  return dy > 0 ? 1 : -1;
+  return oPolicy(s);
+}
+// O is the predictive tracker: mirrored state, fixed all-1 weights
+// (same mirror rule as strategy.mjs — y axis shared, no negation).
+const O_FIXED = [
+  { feature: "intercept", weight: 1, when: "always" },
+  { feature: "retreatCenter", weight: 1, when: "always" },
+  { feature: "trackBall", weight: 1, when: "always" },
+];
+function oPolicy(s) {
+  const m = { x: W - s.x, y: s.y, vx: -s.vx, vy: s.vy, px: s.po };
+  let best = 0, bestScore = -Infinity;
+  for (const a of [-1, 0, 1]) {
+    let sc = 0;
+    for (const c of O_FIXED) {
+      if (WHEN[c.when](m) && FEATS[c.feature]) sc += c.weight * FEATS[c.feature](m, a);
+    }
+    if (sc > bestScore) { bestScore = sc; best = a; }
+  }
+  return best;
 }
 function frame(f) {
   if (f % 4 === 0) { st.ax = policy(st, "X"); st.ao = policy(st, "O"); }

@@ -120,7 +120,27 @@ export function versionMove(version, state, rand) {
   return best;
 }
 
-/** Fixed deadband tracker (the sparring partner). */
+/** Mirror sides so an X-policy can play O (Pong is left-right symmetric;
+ *  the y axis is shared, so actions map as-is — no negation). */
+export function mirrorState(state) {
+  return {
+    ball: { x: COURT.w - state.ball.x, y: state.ball.y, vx: -state.ball.vx, vy: state.ball.vy },
+    paddleX: state.paddleO,
+    paddleO: state.paddleX,
+    scoreX: state.scoreO,
+    scoreO: state.scoreX,
+  };
+}
+
+/** Fixed predictive tracker: the v2 sparring partner. Stronger than the
+ *  deadband (loses ~0.77 to the v1 champion, not 0-200) — headroom is real. */
+export const PREDICTIVE = strategyVersion([
+  { feature: "intercept", weight: 1, when: "always" },
+  { feature: "retreatCenter", weight: 1, when: "always" },
+  { feature: "trackBall", weight: 1, when: "always" },
+], null);
+
+/** Fixed deadband tracker (the v1 sparring partner). */
 export function baselineMove(state) {
   const dy = state.ball.y - state.paddleO;
   const toward = state.ball.vx > 0;

@@ -32,9 +32,24 @@ plateau. Held-out 200 games vs the tracker: **200/200**.
 
 Honest caveat: the tracker is weak (no prediction, 1.5 deadband) — the
 champion learned to be a perfect tracker, not a perfect player. Prediction
-beats reaction every rally here. Next level: predictive tracker or self-play
-as the sparring partner. `progress.json` / `champion.json` are git-ignored
-live artifacts, regenerated every run.
+beats reaction every rally here. `progress.json` / `champion.json` are
+git-ignored live artifacts, regenerated every run.
+
+## Stronger sparring (`PREDICTIVE`, plan `baseline`)
+
+v2 retires the v1 journals (strategy.mjs entered the implementation hash):
+same protocol, O is a fixed all-1s predictive tracker via mirrored state
+(`mirrorState` — Pong is left-right symmetric, actions map as-is). Measured
+head-to-head first: v1 champion takes `0.77` off predictive (not 1.00) —
+real headroom. Trainer: `node examples/pong/trainer.mjs DB predictive`
+(new `pong-v2-l*` IDs, start from the rebuilt v1 champion).
+
+Measured once (~80 s): 12 links, 1 accepted (`attackAngle`, link 2), plateau
+at probe `0.938`. Held-out 200: vs predictive `0.970 (189W/10D/1L)` (v1:
+`0.77`), vs deadband `200/200`, head-to-head vs v1 `0.50` both seats.
+v2 dominates v1 against the field and ties it directly — no cycle pathology
+this time. The screen now plays champion-vs-predictive (both predictive when
+idle).
 
 ```bash
 node examples/pong/measure.mjs 200
