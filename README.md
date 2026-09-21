@@ -11,7 +11,7 @@ itself: bounded experiments, unattended, each link resuming from the journal.
 
 You supply the task runner and quality measurements. Mutara supplies candidate
 search, accept/reject decisions, budget accounting and a recoverable SQLite
-journal through TEOB. It does not train model weights or update your production
+journal through [TEOB](https://github.com/lambda-house/teob-ts). It does not train model weights or update your production
 agent automatically. Rejected candidates leave the current strategy in place.
 
 ```text

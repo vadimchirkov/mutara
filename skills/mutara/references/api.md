@@ -58,6 +58,9 @@ try {
 }
 ```
 
+Use `startOrResume` instead of `start` when the same ID may run twice; it
+starts from `idle` and otherwise returns the saved state.
+
 Create the parent directory before using a nested database path. `:memory:` is
 useful for a smoke test, but cannot recover across processes.
 
