@@ -25,6 +25,31 @@ held-out 200 games `0.745 (135W/28D/37L)` vs initial `0.53 (94W/24D/82L)`.
 Single-task result on one seed set. New behavior = new ID + new DB; reruns
 resume without re-executing.
 
+## Self-play (`selfplay.mjs`, `sp-bench.mjs`)
+
+The candidate fights the reigning champion, both seats (candidate seat by
+sample parity, X starts, seat-split streams). No fixed baseline, no mirror:
+the absolute 0.5 line is par by symmetry. Versions and proposer are shared
+with the component search; 3 links × 8 rounds, fresh seeds per link, start
+from the v2 champion.
+
+```bash
+node examples/connect4/sp-bench.mjs ./examples/connect4/sp-chain.db
+```
+
+Measured once (~50 s): links accepted 2/0/2, final
+`{blockWin 2, center 0.5, takeWin 0.5}`. Guards on fresh seeds, same 9M set
+for the as-X comparison:
+
+* head-to-head vs v2 champion (as X): `0.5725` — beats its teacher;
+* vs fixed MCTS-15 baseline (as X): `0.65` vs v2's `0.715` on the same seeds
+  (−0.065, ~2σ) — gave up edge against the weaker style;
+* vs deep MCTS-500: `0.175` vs `0.15` before — no measurable change.
+
+The documented self-play pathology, caught by the guards: tuning against
+itself sharpened the anti-champion game and dulled the baseline-crushing one.
+A league of past champions is the next step, not a tweak here.
+
 ## Chain and ceiling
 
 `chain.mjs`: 3 links × 6 rounds, fresh seeds per link, champion handoff.

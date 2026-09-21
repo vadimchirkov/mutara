@@ -16,6 +16,8 @@ import * as pig from "../examples/pig/experiment.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as c4 from "../examples/connect4/experiment.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
+import * as c4sp from "../examples/connect4/selfplay.mjs";
+// @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as kuhn from "../examples/kuhn/experiment.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as kuhnCfr from "../examples/kuhn/cfr.mjs";
@@ -61,6 +63,27 @@ describe("game starter smoke", () => {
         expect(state.status).toBe("finished");
         expect(state.trials).toHaveLength(1);
         expect(state.executions).toBe(4);
+        expect(state.champion?.id).toBeTypeOf("string");
+      } finally {
+        await h.close();
+      }
+    });
+  });
+
+  it("connect4 self-play adapter runs one round to finish", async () => {
+    await withDatabase(async (storage) => {
+      const h = learnerHarness(storage, c4sp.adapter);
+      try {
+        const plan = c4sp.buildSpPlan({
+          rounds: 1,
+          trainingSeeds: [101, 102, 103, 104],
+          validationSeeds: [1001, 1002, 1003, 1004],
+        });
+        await h.start("c4-sp-smoke", plan);
+        const state = await h.wait("c4-sp-smoke");
+        expect(state.status).toBe("finished");
+        expect(state.trials).toHaveLength(1);
+        expect(state.executions).toBe(2);
         expect(state.champion?.id).toBeTypeOf("string");
       } finally {
         await h.close();
