@@ -23,6 +23,8 @@ import * as kuhnCfr from "../examples/kuhn/cfr.mjs";
 import * as auto from "../examples/tictactoe/auto.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as auto2 from "../examples/tictactoe/auto2.mjs";
+// @ts-ignore — examples are untyped .mjs starters, imported deliberately.
+import * as pong from "../examples/pong/experiment.mjs";
 
 function withDatabase(run: (storage: string) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "mutara-examples-smoke-"));
@@ -179,6 +181,27 @@ describe("game starter smoke", () => {
         });
         await h.start("ttt-auto2-smoke", plan);
         const state = await h.wait("ttt-auto2-smoke");
+        expect(state.status).toBe("finished");
+        expect(state.trials).toHaveLength(1);
+        expect(state.executions).toBe(4);
+        expect(state.champion?.id).toBeTypeOf("string");
+      } finally {
+        await h.close();
+      }
+    });
+  });
+
+  it("pong adapter runs one round to finish", async () => {
+    await withDatabase(async (storage) => {
+      const h = learnerHarness(storage, pong.adapter);
+      try {
+        const plan = pong.buildPlan({
+          rounds: 1,
+          trainingSeeds: [101, 102, 103, 104],
+          validationSeeds: [1001, 1002, 1003, 1004],
+        });
+        await h.start("pong-smoke", plan);
+        const state = await h.wait("pong-smoke");
         expect(state.status).toBe("finished");
         expect(state.trials).toHaveLength(1);
         expect(state.executions).toBe(4);
