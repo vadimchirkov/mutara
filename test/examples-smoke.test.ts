@@ -6,8 +6,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { learnerHarness } from "../src/sqlite.js";
+import { optimize } from "../src/optimizer.js";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as ttt from "../examples/tictactoe/experiment.mjs";
+// @ts-ignore — examples are untyped .mjs starters, imported deliberately.
+import * as tuning from "../examples/tictactoe/tuning.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as c4 from "../examples/connect4/experiment.mjs";
 
@@ -56,6 +59,26 @@ describe("game starter smoke", () => {
       } finally {
         await h.close();
       }
+    });
+  });
+
+  it("tictactoe optimizer path runs a tiny search", async () => {
+    await withDatabase(async (storage) => {
+      const result = await optimize({
+        id: "ttt-tune-smoke",
+        storage,
+        space: tuning.space,
+        metrics: [{ name: "score", direction: "higher", weight: 1 }],
+        implementation: { execute: tuning.execute.toString(), ...tuning.implementation },
+        execute: tuning.execute,
+        recovery: "repeatable",
+        decision: { mode: "heuristic" },
+        budget: { trials: 1 },
+        samplesPerTrial: 1, // 1 trial * 1 case * 2 (baseline+candidate) = 2 games
+      });
+      expect(result.totalTrials).toBe(1);
+      expect(result.executions).toBe(2);
+      expect(result.champion.uctC).toBeTypeOf("number");
     });
   });
 });

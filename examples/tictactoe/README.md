@@ -19,8 +19,12 @@ Run (new ID per experiment, keep old DBs):
 
 ```bash
 pnpm run build
-node examples/tictactoe/run.mjs ttt-mcts-v1 ./examples/tictactoe/learning.db
+node examples/tictactoe/run.mjs ttt-mcts-v3 ./examples/tictactoe/learning.db
 ```
+
+Shared logic (`playGame`, `execute`, `space`) lives in `tuning.mjs` so the
+smoke test can import it; `run.mjs` is a thin CLI wrapper. The move changed
+the implementation hash, hence the new experiment ID.
 
 The script then scores champion vs initial on 200 fresh seeds (`1_000_000+i`)
 with W/D/L breakdown. Those games did not select the winner.
