@@ -1,11 +1,13 @@
 # Mutara
 
-**Try agent configurations. Measure them. Keep accepted improvements.**
+**Selection with a journal: propose → measure → keep the winner.**
 
-Mutara helps an agent try new strategies, measure the result, and keep
-successful changes. For example: adjusting a prompt, search parameters, tool
-ordering, or memory selection. The application defines what can change and how
-to evaluate quality; Mutara runs the experiment and stores its history on TEOB.
+Mutara is the loop around self-learning, not the learning itself. Your side
+learns — policies, prompts, MCTS, CFR, a feature generator. Mutara proposes
+candidates, measures them on pinned cases, keeps only gated improvements, and
+journals every step, so a crash never loses the lesson and a rerun never
+re-pays it. Close the loop with a supervisor chain and the machine drives
+itself: bounded experiments, unattended, each link resuming from the journal.
 
 You supply the task runner and quality measurements. Mutara supplies candidate
 search, accept/reject decisions, budget accounting and a recoverable SQLite
