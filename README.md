@@ -54,21 +54,12 @@ of quality on real tasks.
 
 ## Install in your project
 
-From the Mutara checkout, build an archive:
-
 ```bash
-pnpm pack
+pnpm add mutara
 ```
 
-In your application directory:
-
-```bash
-pnpm add /absolute/path/to/mutara/mutara-0.1.0.tgz
-```
-
-The package is local and not published yet; `pnpm add mutara` is not a verified
-way to install this project. It includes ESM JavaScript, TypeScript declarations
-and the agent skill. Private Alchemy recipes, journals and `.env` are excluded.
+The package includes ESM JavaScript, TypeScript declarations and the agent
+skill. Private Alchemy recipes, journals and `.env` are excluded.
 
 ## Choose an API
 

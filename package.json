@@ -1,9 +1,13 @@
 {
   "name": "mutara",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "license": "MIT",
   "description": "Test new agent strategies, keep measured improvements, and recover every experiment with TEOB.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vadimchirkov/mutara.git"
+  },
   "engines": {
     "node": ">=22"
   },
