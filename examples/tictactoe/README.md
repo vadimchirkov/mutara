@@ -76,4 +76,33 @@ Measured once (`ttt-comp-v5`, 12 rounds × 4 jobs × 48 games = 2304 games):
 `0.83 (148W/37D/15L)` vs initial `0.47 (84W/21D/95L)`. Single-task result on
 one seed set; rejections included a train-negative and a train-only gain.
 New behavior = new ID + new DB; `bench.mjs` resumes a finished ID without
-re-executing (`state` → `start` only from `idle`).
+re-executing via `startOrResume`.
+
+## Machine dictionary (`auto-features.mjs`, `quarantine.mjs`, `auto.mjs`)
+
+Can the machine invent the vocabulary, not just weigh it? Protocol: the
+generator wrote 14 features in ONE shot, deliberately excluding the human five
+— the test is invention beyond them. `quarantine.mjs` ran once offline
+(2999 cases: determinism, binary output, no throws): 14/14 PASS, dictionary
+pinned unrevised. Selection then ran with methodology parity: same opponent,
+same 48 seeds, same heuristic gate, same capacity (5 components). Staged
+proposer: rounds 0..13 screen one feature each, then free mutations.
+
+```bash
+node examples/tictactoe/quarantine.mjs
+node examples/tictactoe/auto-bench.mjs ttt-auto-v1 ./examples/tictactoe/auto.db
+```
+
+Measured once (26 rounds × 4 jobs × 48 games, ~2 s): 26 trials, 3 accepted,
+champion `{twoInRow 0.5, safeMove 0.5, centerVsCorner 0.5}`. Screening rejected
+`fork`/`threat` alone (train-negative without a win feature) and
+`oppositeCorner` (train-positive, validation-negative — correctly caught).
+Held-out reuses the human run's 200 seeds (valid — held-out never selects;
+paired by construction): machine `0.695 (107W/64D/29L)` vs human
+`0.8325 (148W/37D/15L)`, paired mean `−0.1375`.
+
+Verdict: invention works (0.47 → 0.70 from a cold start, win-seeking
+re-emerged via `twoInRow`, safety via `safeMove`) but does not match human
+knowledge. The bounded lower bound is reported in every trial reason and is
+honestly vacuous at n=48 (Hoeffding penalty ~0.5 dwarfs gains) — the verdict
+comes from the held-out, not the gate.
