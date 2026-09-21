@@ -1,5 +1,5 @@
-// Smoke for the game starters (examples/tictactoe, examples/connect4, examples/pig).
-// One round on 4+4 seeds each: catches core Adapter/harness drift, not strength.
+// Smoke for the game starters (tictactoe, connect4, pig, kuhn).
+// One round on tiny plans: catches core Adapter/harness drift, not strength.
 // Full measurements live in the examples' own bench scripts + READMEs.
 import { describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -15,6 +15,8 @@ import * as tuning from "../examples/tictactoe/tuning.mjs";
 import * as pig from "../examples/pig/experiment.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as c4 from "../examples/connect4/experiment.mjs";
+// @ts-ignore — examples are untyped .mjs starters, imported deliberately.
+import * as kuhn from "../examples/kuhn/experiment.mjs";
 
 function withDatabase(run: (storage: string) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "mutara-examples-smoke-"));
@@ -95,6 +97,23 @@ describe("game starter smoke", () => {
         });
         await h.start("pig-smoke", plan);
         const state = await h.wait("pig-smoke");
+        expect(state.status).toBe("finished");
+        expect(state.trials).toHaveLength(1);
+        expect(state.executions).toBe(4);
+        expect(state.champion?.id).toBeTypeOf("string");
+      } finally {
+        await h.close();
+      }
+    });
+  });
+
+  it("kuhn adapter runs one round to finish", async () => {
+    await withDatabase(async (storage) => {
+      const h = learnerHarness(storage, kuhn.adapter);
+      try {
+        const plan = kuhn.buildPlan({ rounds: 1 });
+        await h.start("kuhn-smoke", plan);
+        const state = await h.wait("kuhn-smoke");
         expect(state.status).toBe("finished");
         expect(state.trials).toHaveLength(1);
         expect(state.executions).toBe(4);
