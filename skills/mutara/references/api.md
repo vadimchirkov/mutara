@@ -37,7 +37,7 @@ Date, Map and functions are not persistent values; convert them explicitly.
 | `recovery` | `repeatable`, `idempotent`, or `manual`; see operations reference. |
 | `execute(job, plan)` | Promise of `{ output, cost }`. Enforce the reservation in the executor. |
 | `grade(job, receipt, plan)` | Pure local `{ metrics: Record<string, number>, data }`, or `null` to await external feedback. Metrics must be finite. |
-| `assess(runs, plan)` | `{ evaluation, decision: { accepted, reason } }`. Each run contains job, receipt and observation. |
+| `assess(runs, plan)` | `{ evaluation, decision: { accepted, reason } }`. Each run contains job, receipt and observation. Decides accept/reject ONLY — the new champion on accept is always the `propose` candidate, never anything `assess` builds. |
 
 Callbacks receive copies of persisted values. Closures and external application
 state remain the host's responsibility. The engine executes jobs sequentially.
