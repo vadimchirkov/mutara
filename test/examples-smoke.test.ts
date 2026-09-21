@@ -1,4 +1,4 @@
-// Smoke for the game starters (examples/tictactoe, examples/connect4).
+// Smoke for the game starters (examples/tictactoe, examples/connect4, examples/pig).
 // One round on 4+4 seeds each: catches core Adapter/harness drift, not strength.
 // Full measurements live in the examples' own bench scripts + READMEs.
 import { describe, expect, it } from "vitest";
@@ -11,6 +11,8 @@ import { optimize } from "../src/optimizer.js";
 import * as ttt from "../examples/tictactoe/experiment.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as tuning from "../examples/tictactoe/tuning.mjs";
+// @ts-ignore — examples are untyped .mjs starters, imported deliberately.
+import * as pig from "../examples/pig/experiment.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as c4 from "../examples/connect4/experiment.mjs";
 
@@ -79,6 +81,27 @@ describe("game starter smoke", () => {
       expect(result.totalTrials).toBe(1);
       expect(result.executions).toBe(2);
       expect(result.champion.uctC).toBeTypeOf("number");
+    });
+  });
+
+  it("pig adapter runs one round to finish", async () => {
+    await withDatabase(async (storage) => {
+      const h = learnerHarness(storage, pig.adapter);
+      try {
+        const plan = pig.buildPlan({
+          rounds: 1,
+          trainingSeeds: [101, 102, 103, 104],
+          validationSeeds: [1001, 1002, 1003, 1004],
+        });
+        await h.start("pig-smoke", plan);
+        const state = await h.wait("pig-smoke");
+        expect(state.status).toBe("finished");
+        expect(state.trials).toHaveLength(1);
+        expect(state.executions).toBe(4);
+        expect(state.champion?.id).toBeTypeOf("string");
+      } finally {
+        await h.close();
+      }
     });
   });
 });
