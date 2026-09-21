@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadTable } from "../src/game/table.js";
+import { loadTable, syntheticWorld } from "../src/game/table.js";
 import { policies } from "../src/game/policies.js";
 import { applyStep, initialGame, playOffline, startGame, type GameState } from "../src/game/engine.js";
 import { freshDb, harness } from "../src/harness.js";
@@ -22,6 +22,16 @@ const payloads = (path: string) =>
   readJournal(path).map((r) => `${r.sequence_nr} ${r.manifest} ${r.payload}`);
 
 describe("replay determinism", () => {
+  it("pins synthetic world content rather than only its seed", () => {
+    const world = syntheticWorld(7, { tiers: 2, perTier: 4, hubCount: 0 });
+    expect(syntheticWorld(7, { tiers: 2, perTier: 4, hubCount: 0 }).hash).toBe(world.hash);
+    expect(syntheticWorld(7, { tiers: 3, perTier: 4, hubCount: 0 }).hash).not.toBe(world.hash);
+    expect(syntheticWorld(7, { tiers: 2, perTier: 5, hubCount: 0 }).hash).not.toBe(world.hash);
+    const withHubs = syntheticWorld(7, { tiers: 2, perTier: 4, hubCount: 3 });
+    expect(syntheticWorld(7, { tiers: 2, perTier: 4, hubCount: 3 }).hash).toBe(withHubs.hash);
+    expect(withHubs.hash).not.toBe(world.hash);
+    expect(() => syntheticWorld(7, { tiers: 0 })).toThrow("Invalid synthetic world");
+  });
   it("two runs of the same seed produce a byte-identical journal", async () => {
     const runOnce = async (name: string) => {
       const path = db(name);

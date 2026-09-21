@@ -67,6 +67,70 @@ export function shuffleNames(table: Table, seed: number): Table {
   };
 }
 
+/**
+ * Synthetic world with controllable graph structure. Same BASE elements,
+ * different recipe topology. Elements are ordinal ("s0", "s1", …) so semantics
+ * cannot help — like shuffleNames but with a genuinely different graph.
+ */
+export function syntheticWorld(seed: number, opts?: {
+  tiers?: number; perTier?: number; hubCount?: number;
+}): Table {
+  const rand = rng(seed);
+  const tiers = opts?.tiers ?? 6;
+  const perTier = opts?.perTier ?? 40;
+  const hubCount = opts?.hubCount ?? 8;
+  if (!Number.isSafeInteger(seed) || !Number.isSafeInteger(tiers) || tiers < 1 ||
+      !Number.isSafeInteger(perTier) || perTier < 1 || !Number.isSafeInteger(hubCount) || hubCount < 0) {
+    throw new Error("Invalid synthetic world parameters");
+  }
+  const draw = (n: number) => Math.floor(rand() * n);
+
+  const elements: string[] = [...BASE];
+  const recipes = new Map<string, string[]>();
+  const addRecipe = (a: string, b: string, result: string) => {
+    const key = pairKey(a, b);
+    const existing = recipes.get(key) ?? [];
+    if (!existing.includes(result)) recipes.set(key, [...existing, result]);
+  };
+
+  for (let tier = 1; tier <= tiers; tier++) {
+    const pool = elements.length;
+    for (let j = 0; j < perTier; j++) {
+      const name = `s${elements.length - BASE.length}`;
+      elements.push(name);
+      // 1–2 recipes produce this element from the preceding tiers.
+      const count = 1 + (rand() < 0.3 ? 1 : 0);
+      for (let r = 0; r < count; r++) {
+        const a = draw(pool);
+        const b = draw(pool);
+        addRecipe(elements[a], elements[b], name);
+      }
+    }
+  }
+
+  // Hubs: some early elements are extra-productive (appear in many recipes)
+  const hubs = elements.slice(0, BASE.length + perTier);
+  for (let i = hubs.length - 1; i > 0; i--) {
+    const j = draw(i + 1);
+    [hubs[i], hubs[j]] = [hubs[j], hubs[i]];
+  }
+  for (const hub of hubs.slice(0, hubCount)) {
+    const extra = 5 + draw(15);
+    for (let i = 0; i < extra; i++) {
+      const partner = elements[draw(elements.length)];
+      const result = elements[BASE.length + draw(elements.length - BASE.length)];
+      addRecipe(hub, partner, result);
+    }
+  }
+
+  const canonical = JSON.stringify({ elements, recipes: [...recipes.entries()] });
+  return {
+    hash: `sha256:${createHash("sha256").update(canonical).digest("hex")}`,
+    elements,
+    combine: (a, b) => recipes.get(pairKey(a, b)) ?? [],
+  };
+}
+
 /** mulberry32 — a run is reproducible from (seed, step) alone. */
 export function rng(seed: number): () => number {
   let s = seed;

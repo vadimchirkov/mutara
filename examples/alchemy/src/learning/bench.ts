@@ -3,7 +3,7 @@
 // pnpm run bench:learning --replay       verifies every decision and trajectory
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { EntityId } from "@lambda-house/teob-ts/core";
-import { loadTable } from "../game/table.js";
+import { loadTable, syntheticWorld } from "../game/table.js";
 import { policies } from "../game/policies.js";
 import { harness } from "../harness.js";
 import { emptyMemory, projectMemory, readJournal } from "../memory.js";
@@ -141,6 +141,40 @@ async function runRepetition(repetition: number) {
     console.log(`repeat ${repetition + 1}, held-out ${name}: ${mean(tests[name].map((e) => e.score)).toFixed(3)}`);
   }
   const means = Object.fromEntries(Object.entries(tests).map(([name, episodes]) => [name, mean(episodes.map((e) => e.score))]));
+
+  // Structural transfer: do learned weights generalize to a world with different
+  // graph topology (depth, width, hub distribution)? Memory can't transfer (it
+  // contains element names from the training world), so both same-world and
+  // cross-world tests use empty memory to isolate the weight contribution.
+  let transfer: { sameWorldNoMem: Record<string, number>; crossWorld: Record<string, number>;
+    lift: Record<string, { sameWorld: number; crossWorld: number; efficiency: number | null }> } | undefined;
+  if (components) {
+    const synthetic = syntheticWorld(719 + repetition);
+    const crossEval = alchemyEvaluator(synthetic);
+    const noMemPlan: ExperimentPlan = { ...plan, memory: snapshotMemory(emptyMemory()) };
+    const crossPlan: ExperimentPlan = { ...noMemPlan, tableHash: synthetic.hash };
+    const sameWorldNoMem: Record<string, number> = { fixed: means.fixed };
+    const crossWorld: Record<string, number> = {
+      fixed: mean((await crossEval(initial, testSeeds, crossPlan)).map((e) => e.score)),
+    };
+    for (const method of methods) {
+      const name = method === "random" ? "randomSearch" : method;
+      sameWorldNoMem[name] = mean((await evaluate(states[method].champion!, testSeeds, noMemPlan)).map((e) => e.score));
+      crossWorld[name] = mean((await crossEval(states[method].champion!, testSeeds, crossPlan)).map((e) => e.score));
+    }
+    const lift: Record<string, { sameWorld: number; crossWorld: number; efficiency: number | null }> = {};
+    for (const name of Object.keys(sameWorldNoMem).filter((n) => n !== "fixed")) {
+      const sw = sameWorldNoMem[name] - sameWorldNoMem.fixed;
+      const cw = crossWorld[name] - crossWorld.fixed;
+      lift[name] = { sameWorld: sw, crossWorld: cw, efficiency: sw > 0 ? cw / sw : null };
+    }
+    transfer = { sameWorldNoMem, crossWorld, lift };
+    for (const [name, l] of Object.entries(lift)) {
+      console.log(`repeat ${repetition + 1}, transfer ${name}: same-world lift=${l.sameWorld.toFixed(2)}, ` +
+        `cross-world lift=${l.crossWorld.toFixed(2)}, efficiency=${l.efficiency?.toFixed(3) ?? "n/a"}`);
+    }
+  }
+
   const paired = (name: string, baseline: string) => tests[name].map((e, i) => e.score - tests[baseline][i].score);
   const result = { repetition, warmSeeds, trainingSeeds, validationSeeds, testSeeds, means, tests,
     deltaVsMemory: paired("adaptive", "memory"), deltaVsRandomSearch: paired("adaptive", "randomSearch"),
@@ -154,7 +188,8 @@ async function runRepetition(repetition: number) {
       weights: t.candidate.weights, components: t.candidate.components, accepted: t.accepted, reason: t.reason,
     }))])),
     cost: { warmupGames: warmSeeds.length, searchGames: measuredGames, searchAttempts: measuredAttempts,
-      testGames: testSeeds.length * Object.keys(tests).length, apiCalls: 0 },
+      testGames: testSeeds.length * (Object.keys(tests).length + (transfer ? 2 * methods.length + 1 : 0)), apiCalls: 0 },
+    transfer,
   };
   console.log(`repeat ${repetition + 1}: ${Object.entries(means).map(([k, v]) => `${k}=${v.toFixed(2)}`).join(" ")}`);
   return result;
@@ -173,6 +208,13 @@ const summary = {
   testGames: results.reduce((n, r) => n + r.cost.testGames, 0),
   componentComparisonsByRepeat: components ? results.map((r) => Object.fromEntries(
     Object.entries(r.componentComparisons!).map(([baseline, { differences: _, ...interval }]) => [baseline, interval]))) : undefined,
+  transfer: components ? {
+    meanEfficiency: Object.fromEntries(Object.keys(results[0].transfer!.lift).map((name) => {
+      const values = results.map((r) => r.transfer!.lift[name].efficiency).filter((v) => v !== null);
+      return [name, values.length ? mean(values) : null];
+    })),
+    byRepeat: results.map((r) => r.transfer!.lift),
+  } : undefined,
   apiCalls: 0,
 };
 if (replay) {

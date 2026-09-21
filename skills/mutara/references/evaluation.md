@@ -20,6 +20,12 @@ set can overfit. Reusing it is a heuristic, not an independent statistical test.
 
 ## Acceptance options
 
+The declarative optimizer supplies two rules: `bounded` (default) and explicit
+`heuristic`. Its weighted objective combines raw metric differences, without
+normalization or hard constraints. Configure units/weights before evaluation;
+use a custom adapter for mandatory quality gates. See [optimizer.md](optimizer.md)
+for case indices, metric bounds and the comparison budget.
+
 The host's `assess` decides promotion. A small deterministic test may use a simple
 minimum paired gain plus hard constraints. Document that choice rather than
 calling it statistically significant. Require correctness gates before optimizing

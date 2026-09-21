@@ -1,213 +1,98 @@
-# Declarative Optimizer Layer
+# Declarative optimizer
 
-A declarative layer on top of the existing Mutara core. The consumer describes
-a parameter space, metrics, and an execution function — Mutara explores,
-tests, and accepts improvements in a continuous loop.
-
-## Approach
-
-Evolutionary extension of the current core (approach A). Three new files, core
-unchanged. Alchemy continues to work on the low-level `createLearner` +
-`Adapter` API.
+Revised 2026-09-21 after checking the initial design against the core's recovery,
+cost and evaluation contracts. Implemented in `src/optimizer.ts`, `src/search.ts`
+and `src/multi-metric.ts`.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────┐
-│  Declarative API  (mutara/optimizer)    │  ← new
-│  space + metrics + execute + budget     │
-├─────────────────────────────────────────┤
-│  Search strategies  (search.ts)         │  ← new
-│  random (v1), grid/bayesian (later)     │
-├─────────────────────────────────────────┤
-│  Multi-metric decision  (multi-metric)  │  ← new
-│  weighted composite → boundedDecision   │
-├─────────────────────────────────────────┤
-│  Core engine  (createLearner + TEOB)    │  ← unchanged
-│  version, journal, recovery             │
-├─────────────────────────────────────────┤
-│  Storage  (SQLite / memory)             │  ← unchanged
-└─────────────────────────────────────────┘
-```
+`space + metrics + executor → Adapter + Plan → createLearner → TEOB`
 
-The declarative layer is a pure wrapper: it synthesizes an `Adapter` from the
-declarative description, and manages epochs and budget.
+`createOptimizer(options)` synthesizes an adapter and plan. Register that adapter
+with `createLearner` in an existing TEOB runtime, or use `learnerHarness`.
+`optimize({ ...options, id, storage })` runs or reopens that same experiment using
+the SQLite harness. It does not implement a second scheduler.
 
-## API
+One experiment has 1–100 trials, with a fixed plan and one budget. The initial
+proposal to chain epochs was removed: it split recovery, identities and the
+comparison budget across a second lifecycle without a demonstrated need.
 
-```ts
-import { optimize } from "mutara/optimizer";
+## Contract
 
-const result = await optimize({
-  space: {
-    temperature: { type: "float", min: 0, max: 2, initial: 1 },
-    maxTokens:   { type: "int",   min: 100, max: 4000, initial: 1000 },
-    style:       { type: "enum",  values: ["concise", "detailed"], initial: "concise" },
-  },
-  metrics: [
-    { name: "quality",  direction: "higher", weight: 1 },
-    { name: "cost_usd", direction: "lower",  weight: 0.3 },
-  ],
-  execute: async (config) => {
-    const r = await callLLM(config);
-    return { quality: judge(r), cost_usd: r.cost };
-  },
-  samplesPerTrial: 5,
-  budget: { trials: 100 },
-  storage: "./optimizer.db",
-});
-
-console.log(result.champion);
-// { temperature: 0.7, maxTokens: 2000, style: "detailed" }
-```
-
-### Contract
-
-| Field | Type | Required | Description |
-|-------|------|:--------:|-------------|
-| `space` | `Record<string, Dimension>` | yes | Parameters with types, ranges, and initial values |
-| `metrics` | `Metric[]` | yes | What to measure, direction, weight |
-| `execute` | `(config) => Promise<Record<string, number>>` | yes | Execution: config → metrics |
-| `samplesPerTrial` | `number` | no (default 1) | Repetitions per candidate for statistical significance |
-| `budget` | `{ trials: number }` | no (default 50) | How many candidates to try |
-| `strategy` | `"random" \| SearchFn` | no (default "random") | Search strategy |
-| `storage` | `string` | no (default ":memory:") | Path to SQLite database |
-
-### Space types
-
-```ts
-type FloatDim = { type: "float"; min: number; max: number; initial: number };
-type IntDim   = { type: "int";   min: number; max: number; initial: number };
-type EnumDim  = { type: "enum";  values: string[]; initial: string };
-type Dimension = FloatDim | IntDim | EnumDim;
-```
-
-### Return value
-
-```ts
-interface OptimizerResult<C> {
-  champion: C;
-  history: TrialSummary[];
-  totalTrials: number;
-  epochs: number;
-}
-
-interface TrialSummary {
-  config: Record<string, unknown>;
-  metrics: Record<string, number>;  // averaged across samples
-  accepted: boolean;
-  reason: string;
-}
-```
-
-## Search strategies
-
-v1: random search only. Samples uniformly from the space, ignoring history.
-For small budgets (<100 trials) random is competitive with bayesian
-optimization.
-
-The strategy is implemented as `propose(champion, history, plan)` — matching
-the `Adapter.propose` signature exactly. Extension: the user passes
-`strategy: (champion, history, space) => config` for custom logic.
-
-Grid and bayesian are separate tasks, added when random hits practical limits.
-
-## Multi-metric decision
-
-Weighted composite → single score → `boundedDecision`.
-
-For each sample i:
-1. Compute difference per metric j: `diff_j = candidate_j - baseline_j`
-2. Flip sign for `direction: "lower"`
-3. Weighted sum: `composite_i = Σ(weight_j × diff_j_i)`
-4. Array of `composite[]` → `boundedDecision({ differences: composite, ... })`
-
-`boundedDecision` parameters:
-- `alpha`: 0.05 (default)
-- `minimumGain`: 0 (accept any statistically significant improvement)
-- `range`: estimated from the initial configuration samples (first candidate
-  vs initial, range = max − min of observed composites for that pair)
-- `comparisons`: `budget.trials` (Bonferroni over the entire budget)
-
-The user controls inter-metric scaling via `weight`. If quality ∈ [0, 1] and
-latency ∈ [0, 5000], latency needs weight ~0.001.
-
-## Continuous mode
-
-The current core limits experiments to 100 rounds. The declarative layer
-works around this by chaining epochs:
-
-```
-while (totalTrials < budget.trials) {
-  epochRounds = min(50, budget.trials - totalTrials)
-  experiment = createLearner(synthesizedAdapter)
-  start(epoch_N, { initial: currentChampion, rounds: epochRounds })
-  result = wait(epoch_N)
-  currentChampion = result.champion
-  totalTrials += result.trials.length
-}
-```
-
-Each epoch is a separate `createLearner` with its own TEOB journal. The
-champion carries over as `plan.initial` for the next epoch. The core is
-unaware of continuity.
-
-For unbounded mode: `budget: { trials: Infinity }` + external `.stop()`.
-
-## Adapter synthesis
-
-The declarative layer creates an `Adapter` from the description:
-
-| Adapter method | Source |
+| Field | Meaning |
 |---|---|
-| `propose` | Search strategy + space definition |
-| `jobs` | N identical jobs (N = samplesPerTrial), input = config |
-| `execute` | Calls user's execute(config), returns as Receipt |
-| `grade` | Extracts metrics from Receipt.output → Observation |
-| `assess` | Composite differences → boundedDecision |
-| `limits` | From budget |
-| `recovery` | `"repeatable"` (execute is safe to retry) |
-| `implementation` | Hash of space + metrics description |
+| `space` | Named float/int ranges or string enums, each with an initial value. |
+| `metrics` | Names, directions and positive weights. Fixed min/max bounds required for bounded decisions. |
+| `implementation` | Finite JSON identifying executor, evaluator, dataset, model and dependencies as applicable. No secrets. |
+| `execute(config, context)` | Returns `{ output: Record<string, number>, cost: number }`. |
+| `recovery` | Defaults to `manual`. `repeatable` is for safe simulations; `idempotent` requires executor deduplication. |
+| `decision` | Defaults to `{ mode: "bounded" }`. Explicit `heuristic` is a mean-gain rule without confidence claims. Both accept `minimumGain` (default 0); bounded also accepts `alpha` (default 0.05). |
+| `samplesPerTrial` | Paired cases per trial, default 1. Repetition alone does not establish statistical significance. |
+| `budget` | `{ trials, cost? }`, default `{ trials: 50, cost: 0 }`. |
+| `costLimit` | Per-execution reservation, default 0. Executor must enforce it. |
+| `seed` | Deterministic candidate search seed, default 7919. |
+| `id`, `storage` | Required experiment ID and optional SQLite path for `optimize`; storage defaults to `:memory:`. |
 
-`Version` is generated via `version(config, implementationId, parentId)`.
+Execution context contains a stable job `id`, `sample` index and `costLimit`.
+Baseline and candidate receive identical indices; each round uses a fresh block.
+The host maps these indices to cases from its pinned dataset, keeps truth out of
+model inputs, and supplies enough independent cases for the planned experiment.
+Recycling a small dataset does not provide an independent statistical test.
 
-## File structure
+The result contains `id`, `champion`, `history`, `totalTrials`, `executions` and
+`spent`. History retains candidate metrics and acceptance reasons. Full paired
+observations and receipts remain in the TEOB journal.
 
-```
-src/
-  engine.ts          — unchanged
-  version.ts         — unchanged
-  decision.ts        — unchanged
-  sqlite.ts          — unchanged
-  index.ts           — unchanged (core exports)
-  optimizer.ts       — NEW: optimize(), adapter synthesis, epoch loop
-  search.ts          — NEW: randomSearch
-  multi-metric.ts    — NEW: compositeDecision
-```
+## Acceptance
 
-New export in `package.json`:
-```json
-"./optimizer": {
-  "types": "./dist/optimizer.d.ts",
-  "import": "./dist/optimizer.js"
-}
-```
+Metric differences are oriented by direction and combined with explicit weights.
+All required values must be finite and within declared bounds. Missing or invalid
+observations fail before executing the next job.
 
-## Tests
+For bounded decisions, the difference range is fixed before observations:
 
-`test/optimizer.test.ts`:
-- Quadratic function: optimizer finds a config closer to the minimum than initial
-- Budget: does not exceed `budget.trials`
-- Multi-metric: two conflicting metrics → finds a compromise
-- Epochs: budget > 50 → verify champion carries between epochs
+`range = 2 × sum(weight × (max - min))`
 
-No mocks, execute = pure math.
+The existing `boundedDecision` uses that range and the full experiment's trial
+budget. It does not estimate bounds from samples or bypass the confidence gate
+when observations agree. One lucky observation cannot establish a bounded gain.
+Adaptive candidates still require fresh independent evaluation cases, and a
+separate final holdout is needed to report the selected champion's performance.
 
-## Out of scope for v1
+Heuristic mode accepts mean composite gain above `minimumGain` and labels the
+reason accordingly. It is useful for deterministic examples; it does not promise
+statistical significance. Weights express user-approved tradeoffs, not hard
+quality constraints. For hard constraints or another evaluation protocol, use
+the existing `Adapter.assess` interface rather than extending this wrapper.
 
-- Grid / bayesian search — add when random hits limits
-- Server / HTTP API — add when a non-JS consumer appears
-- Custom evaluate / LLM-judge — low-level API covers this
-- UI / dashboard — history is available via result.history
-- Automatic weight selection — user sets weights explicitly
-- Pareto optimization — weighted composite covers v1
+## Recovery and budgets
+
+All progress is owned by the core experiment. Reopening the same ID returns a
+finished result without executing again, or activates the core recovery policy.
+Changing options, artifacts or the recorded implementation requires a new ID.
+Optimizer, search and decision module contents are included in its artifact.
+Undeclared closure values, mutable data and external services cannot be detected.
+
+The entire next trial must fit the remaining reservation budget before any of
+its jobs execute. Reported costs enter receipts and the core ledger. Excessive
+receipts block the experiment; an executor must prevent overspending itself.
+Execution counts cover logical jobs, not transport retries.
+
+An executor error or uncertain manual recovery blocks until reconciled. Use
+`createOptimizer` to reconstruct the same adapter, open `learnerHarness`, inspect
+`state(id)`, then send `received` with the current job ID and actual receipt as
+described in the operations reference. Do not infer an outcome or reset history.
+
+Only one runtime should own a given experiment at a time. `:memory:` cannot
+recover across processes. Source TS and built JS have distinct artifact hashes.
+Existing journals require their recorded code; this revision does not migrate them.
+
+## Verification and scope
+
+Tests cover cost reservations, paired cases, evidence thresholds, repeated opens,
+manual reconciliation, idempotent crash recovery and changed-artifact rejection.
+The package check exercises the public optimizer export in a clean consumer.
+
+Random search remains the only built-in strategy. New search algorithms,
+continuous campaigns, caching and concurrency need a measured use case. Alchemy
+remains the existing benchmark; a synthetic math test establishes wiring only.

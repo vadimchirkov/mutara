@@ -18,6 +18,10 @@
     "./sqlite": {
       "types": "./dist/sqlite.d.ts",
       "import": "./dist/sqlite.js"
+    },
+    "./optimizer": {
+      "types": "./dist/optimizer.d.ts",
+      "import": "./dist/optimizer.js"
     }
   },
   "files": [

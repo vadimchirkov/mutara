@@ -4,10 +4,8 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { rmSync } from "node:fs";
 
-import { createLearner, type Adapter, type BasePlan, type Receipt } from "../src/engine.js";
+import { type Adapter, type BasePlan, type Receipt } from "../src/engine.js";
 import { learnerHarness } from "../src/sqlite.js";
-import { EntityId } from "@lambda-house/teob-ts/core";
-import { createInMemoryRuntime } from "@lambda-house/teob-ts/inmem";
 import { boundedDecision } from "../src/decision.js";
 import { canonical, digest, version, validateVersion, type Version } from "../src/version.js";
 
@@ -56,7 +54,7 @@ describe("generic learning lifecycle", () => {
       final = await h.wait("score");
       expect(final.champion?.config.value).toBe(2);
       expect([final.executions, final.spent]).toEqual([2, 2]);
-      await h.send("score", { tag: "received", jobId: "score/1/0", receipt: { output: 999, cost: 1 } });
+      await h.send("score", { tag: "received", jobId: "learning/score/1/0", receipt: { output: 999, cost: 1 } });
       expect(await h.state("score")).toEqual(final);
       await expect(h.send("score", { tag: "rollback", versionId: "unknown", reason: "regression" })).rejects.toThrow("Unknown");
       await h.send("score", { tag: "rollback", versionId: initial.id, reason: "regression" });
@@ -107,11 +105,11 @@ describe("generic learning lifecycle", () => {
     } finally { await first.close(); }
     const second = learnerHarness(db, a);
     try {
-      await expect(second.send("score", { tag: "observed", jobId: "score/0/0",
+      await expect(second.send("score", { tag: "observed", jobId: "learning/score/0/0",
         observation: { metrics: 1 as never, data: 1 } })).rejects.toThrow("metrics");
-      await second.send("score", { tag: "observed", jobId: "score/0/0", observation: { metrics: { score: 1 }, data: 1 } });
+      await second.send("score", { tag: "observed", jobId: "learning/score/0/0", observation: { metrics: { score: 1 }, data: 1 } });
       const final = await second.wait("score");
-      await second.send("score", { tag: "observed", jobId: "score/0/0", observation: { metrics: { score: 999 }, data: 999 } });
+      await second.send("score", { tag: "observed", jobId: "learning/score/0/0", observation: { metrics: { score: 999 }, data: 999 } });
       expect(await second.state("score")).toEqual(final);
       expect(final.champion?.config.value).toBe(1);
       expect(execute).toHaveBeenCalledTimes(1);
@@ -132,12 +130,12 @@ describe("generic learning lifecycle", () => {
       if (recovery === "manual") {
         await expect(recovered.wait("score")).rejects.toThrow("Unknown outcome");
         expect(execute).not.toHaveBeenCalled();
-        await recovered.send("score", { tag: "received", jobId: "score/0/0", receipt: { output: 1, cost: 1 } });
+        await recovered.send("score", { tag: "received", jobId: "learning/score/0/0", receipt: { output: 1, cost: 1 } });
       }
       const final = await recovered.wait("score");
       expect([final.executions, final.spent]).toEqual([1, 1]);
       expect(final.champion?.config.value).toBe(1);
-      if (recovery !== "manual") expect(execute.mock.calls[0][0].id).toBe("score/0/0");
+      if (recovery !== "manual") expect(execute.mock.calls[0][0].id).toBe("learning/score/0/0");
       expect(readJournal(db).filter((e) => e.manifest === "candidate_proposed")).toHaveLength(1);
     } finally { await recovered.close(); }
   });
@@ -150,11 +148,25 @@ describe("generic learning lifecycle", () => {
       await expect(first.wait("score")).rejects.toThrow("interrupted");
     } finally { await first.close(); }
     crashPrefix(db, "experiment_blocked");
+    const before = readJournal(db);
     const execute = vi.fn(adapter().execute);
     const second = learnerHarness(db, adapter({ implementation: { task: "v2" }, execute }));
     try { await expect(second.wait("score")).rejects.toThrow("recorded implementation"); }
     finally { await second.close(); }
     expect(execute).not.toHaveBeenCalled();
+    expect(readJournal(db)).toEqual(before);
+    const restored = learnerHarness(db, adapter());
+    try { expect((await restored.wait("score")).status).toBe("finished"); }
+    finally { await restored.close(); }
+  });
+
+  it.each([null, "connection lost"])("journals non-Error executor failures: %j", async (error) => {
+    const h = learnerHarness(path(`non-error-${String(error)}`), adapter({ execute: async () => { throw error; } }));
+    try {
+      await h.start("score", plan());
+      await expect(h.wait("score", 1000)).rejects.toThrow(String(error));
+      expect((await h.state("score")).status).toBe("blocked");
+    } finally { await h.close(); }
   });
 
   it("wakes concurrent waiters after an asynchronous execution", async () => {

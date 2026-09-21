@@ -40,7 +40,7 @@ export interface Adapter<V extends Identity, P extends BasePlan<V>, E> {
   validateVersion(version: V): void;
   limits(plan: P): { executions: number; cost: number };
   propose(champion: V, history: Trial<V, E>[], plan: P): V;
-  jobs(champion: V, candidate: V, plan: P): Omit<Job, "id">[];
+  jobs(champion: V, candidate: V, plan: P, round: number): Omit<Job, "id">[];
   /** repeatable: safe simulation; idempotent: executor honors job.id; manual: never retry uncertainty. */
   recovery: "repeatable" | "idempotent" | "manual";
   execute(job: Job, plan: P): Promise<Receipt>;
@@ -48,7 +48,7 @@ export interface Adapter<V extends Identity, P extends BasePlan<V>, E> {
   grade(job: Job, receipt: Receipt, plan: P): Observation | null;
   assess(runs: RunRecord[], plan: P): { evaluation: E; decision: Decision };
 }
-export type Command<V, P, E> =
+export type Command<_V, P, _E> =
   | { tag: "start"; plan: P }
   | { tag: "advance"; resume?: boolean }
   | { tag: "received"; jobId: string; receipt: Receipt }
@@ -72,6 +72,11 @@ export interface LearnerOptions { category?: string }
 const tags = ["experiment_started", "candidate_proposed", "execution_requested", "execution_received", "observation_recorded",
   "candidate_decided", "experiment_finished", "experiment_failed", "experiment_blocked", "strategy_reverted"] as const;
 const current = <V, P, E>(s: State<V, P, E>) => s.pending?.runs.find((r) => !r.observation);
+const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
+/** Allow only floating-point roundoff from summing nonnegative costs. */
+export function exceedsCost(amount: number, limit: number, terms = 1): boolean {
+  return !Number.isFinite(amount) || amount - limit > Number.EPSILON * Math.max(amount, limit) * terms;
+}
 function validateObservation(o: Observation) {
   canonical(o);
   if (!o.metrics || typeof o.metrics !== "object" || Array.isArray(o.metrics) || Object.values(o.metrics).some((v) => typeof v !== "number" || !Number.isFinite(v))) {
@@ -98,25 +103,29 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
       const receipt = await adapter.execute(structuredClone(job), structuredClone(s.plan!));
       await ctx.tellSelf({ tag: "received", jobId: job.id, receipt });
     } catch (error) {
-      await ctx.tellSelf({ tag: "execution_failed", jobId: job.id, message: (error as Error).message });
+      await ctx.tellSelf({ tag: "execution_failed", jobId: job.id, message: errorMessage(error) });
     }
   }
   const aggregate: Aggregate<C, R, Ev, S> = {
     category: category.categoryId,
     initial: (id) => ({ id: String(id), status: "idle", trials: [], executions: 0, spent: 0 }),
     async decide(s, command, ctx) {
+      // An incompatible reader must not append a terminal event to a recoverable journal.
+      if (s.coreId && (s.coreId !== coreId || s.adapterId !== adapterId) &&
+          (command.tag !== "get_state" || s.status === "running")) {
+        return reply({ tag: "error", message: "Restore the recorded implementation before resuming" });
+      }
       const advance = () => ctx.tellSelf({ tag: "advance" });
       switch (command.tag) {
         case "start":
           if (s.status !== "idle") return reply({ tag: "error", message: "Experiment already started" });
-          try { validate(command.plan); } catch (e) { return reply({ tag: "error", message: (e as Error).message }); }
+          try { validate(command.plan); } catch (e) { return reply({ tag: "error", message: errorMessage(e) }); }
           await advance();
           return persist({ tag: "experiment_started", plan: structuredClone(command.plan), coreId, adapterId,
             implementation: { core: coreImplementation, adapter: structuredClone(adapter.implementation) } });
         case "advance": {
           if (s.status !== "running") return done();
           try {
-            if (s.coreId !== coreId || s.adapterId !== adapterId) throw new Error("Restore the recorded implementation before resuming");
             validate(s.plan!);
             if (!s.pending) {
               if (s.trials.length >= s.plan!.rounds) return persist({ tag: "experiment_finished" });
@@ -124,12 +133,14 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
               canonical(candidate);
               adapter.validateVersion(structuredClone(candidate));
               if (candidate.parentId !== s.champion!.id) throw new Error("Candidate must identify its parent");
-              const jobs = adapter.jobs(structuredClone(s.champion!), structuredClone(candidate), structuredClone(s.plan!))
+              const jobs = adapter.jobs(structuredClone(s.champion!), structuredClone(candidate), structuredClone(s.plan!), s.trials.length)
                 .map((job, i) => ({ ...job, id: `${encodeURIComponent(name)}/${encodeURIComponent(s.id)}/${s.trials.length}/${i}` }));
               canonical(jobs);
               if (!jobs.length || new Set(jobs.map((j) => j.key)).size !== jobs.length || jobs.some((j) => typeof j.key !== "string" || !j.key || !Number.isFinite(j.costLimit) || j.costLimit < 0)) throw new Error("Invalid evaluation jobs");
               const budget = adapter.limits(structuredClone(s.plan!));
-              if (s.executions + jobs.length > budget.executions || s.spent + jobs.reduce((n, j) => n + j.costLimit, 0) > budget.cost) throw new Error("Evaluation budget exhausted");
+              const executions = s.executions + jobs.length;
+              const reserved = s.spent + jobs.reduce((n, j) => n + j.costLimit, 0);
+              if (executions > budget.executions || exceedsCost(reserved, budget.cost, executions)) throw new Error("Evaluation budget exhausted");
               await advance();
               return persist({ tag: "candidate_proposed", round: s.trials.length, candidate, jobs });
             }
@@ -153,22 +164,22 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
             if (record.requested && adapter.recovery === "manual") return persist({ tag: "experiment_blocked", message: `Unknown outcome of ${record.job.id}; reconcile its receipt before continuing` });
             const effect = () => execute(s, record.job, ctx);
             return record.requested ? run(effect) : andRun(persist({ tag: "execution_requested", jobId: record.job.id }), effect);
-          } catch (e) { return persist({ tag: "experiment_failed", message: (e as Error).message }); }
+          } catch (e) { return persist({ tag: "experiment_failed", message: errorMessage(e) }); }
         }
         case "received": {
           const record = current(s);
           if (!["running", "blocked"].includes(s.status) || record?.job.id !== command.jobId || !record.requested || record.receipt) return done();
           try {
             canonical(command.receipt);
-            if (!Number.isFinite(command.receipt.cost) || command.receipt.cost < 0 || command.receipt.cost > record.job.costLimit) throw new Error("Invalid receipt or execution exceeded its cost reservation");
-          } catch (e) { return persist({ tag: "experiment_blocked", message: (e as Error).message }); }
+            if (command.receipt.cost < 0 || exceedsCost(command.receipt.cost, record.job.costLimit)) throw new Error("Invalid receipt or execution exceeded its cost reservation");
+          } catch (e) { return persist({ tag: "experiment_blocked", message: errorMessage(e) }); }
           await advance();
           return persist({ tag: "execution_received", jobId: command.jobId, receipt: structuredClone(command.receipt) });
         }
         case "observed": {
           const record = current(s);
           if (s.status !== "running" || record?.job.id !== command.jobId || !record.receipt) return done();
-          try { validateObservation(command.observation); } catch (e) { return reply({ tag: "error", message: (e as Error).message }); }
+          try { validateObservation(command.observation); } catch (e) { return reply({ tag: "error", message: errorMessage(e) }); }
           await advance();
           return persist({ tag: "observation_recorded", jobId: command.jobId, observation: structuredClone(command.observation) });
         }

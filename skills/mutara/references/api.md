@@ -1,14 +1,18 @@
 # Public API
 
-Import from `mutara`; do not import its internal `dist` files. The package exports
-TypeScript declarations. A strategy can be any validated `Identity`, or use the
+Public entry points are `mutara` (core), `mutara/sqlite` (harness), and
+`mutara/optimizer` (declarative search). Do not import internal `dist` files.
+For parameter tuning, start with [optimizer.md](optimizer.md); this reference
+covers custom adapters. All entry points include TypeScript declarations.
+A strategy can be any validated `Identity`, or use the
 built-in `Version<Config>` containing `id`, `parentId`, `implementationId`, `config`.
 
 ```ts
 import {
-  learnerHarness, createLearner, version, validateVersion, digest, canonical,
+  createLearner, version, validateVersion, digest, canonical,
   boundedDecision, type Adapter, type BasePlan, type Version,
 } from "mutara";
+import { learnerHarness } from "mutara/sqlite";
 ```
 
 `version(config, implementationId, parentId = null)` clones finite JSON and hashes
@@ -29,7 +33,7 @@ Date, Map and functions are not persistent values; convert them explicitly.
 | `validateVersion(version)` | Check both identity and domain constraints; throw on invalid configuration. |
 | `limits(plan)` | `{ executions, cost }`: positive integer logical-job count, finite nonnegative cost budget. |
 | `propose(champion, history, plan)` | Synchronous candidate; `parentId` must equal champion ID. Use recorded, reproducible inputs. |
-| `jobs(champion, candidate, plan)` | Nonempty array of `{ key, input, costLimit }`. Unique nonempty string keys; finite nonnegative reservations. Mutara assigns IDs. |
+| `jobs(champion, candidate, plan, round)` | Nonempty array of `{ key, input, costLimit }`. Zero-based round allows fresh paired cases. Unique nonempty string keys; finite nonnegative reservations. Mutara assigns IDs. |
 | `recovery` | `repeatable`, `idempotent`, or `manual`; see operations reference. |
 | `execute(job, plan)` | Promise of `{ output, cost }`. Enforce the reservation in the executor. |
 | `grade(job, receipt, plan)` | Pure local `{ metrics: Record<string, number>, data }`, or `null` to await external feedback. Metrics must be finite. |
@@ -67,11 +71,10 @@ useful for a smoke test, but cannot recover across processes.
 State includes `champion`, `plan`, `trials`, `pending.runs`, `executions`, `spent`,
 `coreId`, `adapterId`, `status` and optional `error`. No input deletes prior trials.
 
-For an existing TEOB runtime, `createLearner(adapter)` returns `{ aggregate,
-category }`. Register the aggregate with codecs covering the exported `Event`
-union and JSON `State`, following the host runtime's registration pattern. The
-category is `learning`; use one compatible learner adapter per runtime/category,
-or separate runtimes/databases. The SQLite harness is the default small integration.
+For an existing TEOB runtime, `createLearner(adapter, { category })` returns the
+aggregate, category and event/state codecs for registration. The default category
+is `learning`; use a distinct category per adapter within the same runtime.
+`learnerHarness(path, adapter, { category })` accepts the same category option.
 
 ## Provenance limits
 

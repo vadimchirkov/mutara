@@ -1,5 +1,11 @@
 # Execution, feedback and recovery
 
+For `optimize`, pass a durable `storage` path and reopen with identical options
+and ID. For inspection, manual reconciliation or rollback, reconstruct its
+adapter with `createOptimizer(options)` and open `learnerHarness` on the same
+database with the default category. See [optimizer.md](optimizer.md).
+Keep one runtime owner per experiment; close the original before reopening.
+
 Mutara records a request before invoking `execute`, then records its receipt and
 grade separately. The process can fail after an external effect but before its
 receipt is durable. Choose a recovery policy that matches that ambiguity:
@@ -12,7 +18,7 @@ receipt is durable. Choose a recovery policy that matches that ambiguity:
 
 An API header named idempotency-key is not a guarantee unless the provider supports
 its semantics. Use globally unique experiment IDs: job IDs are
-`experimentId/round/jobIndex`. Do not reuse them across independent databases sharing
+`encodedCategory/encodedExperimentId/round/jobIndex`. Do not reuse them across independent databases sharing
 an executor's deduplication store.
 
 The published TEOB runtime recovers an entity when addressed. Reopen the harness
@@ -22,7 +28,8 @@ in the host's durable task records.
 
 ## Blocked work
 
-Executor errors and invalid/excessive receipts block the run. Inspect
+Executor errors and invalid/excessive receipts block the run. Invalid metrics
+detected during grading mark it `failed` instead. Inspect
 `state.error` and `state.pending.runs`; do not delete journal events or invent a
 receipt to make progress. Reconcile the provider's actual result and accounting:
 
@@ -37,6 +44,8 @@ The receipt must match the current requested job and its reservation. An unknown
 outcome may need human/provider investigation. A run already marked `failed` is
 not automatically restarted by sending `advance`; correct the cause and start a
 new experiment with a new ID. Resuming requires the recorded implementation.
+A mismatched implementation is rejected without changing the journal, so restoring
+the original code still allows a running experiment to resume.
 
 Execution limits count logical jobs, not transport attempts. Cost limits are
 reservations checked before work and on receipt; they cannot undo overspending

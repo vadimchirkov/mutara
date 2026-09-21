@@ -30,7 +30,10 @@ try {
     .replace("../skills/mutara/assets/adapter.mjs", "./adapter.mjs");
   writeFileSync(join(directory, "demo.mjs"), demo);
   console.log(run(process.execPath, ["demo.mjs"]).trim());
-  writeFileSync(join(directory, "consumer.ts"), `import { learnerHarness, version, digest, type Adapter, type BasePlan } from "mutara";
+  writeFileSync(join(directory, "consumer.ts"), `import { version, digest, type Adapter, type BasePlan } from "mutara";
+import { learnerHarness } from "mutara/sqlite";
+import { optimize, createOptimizer } from "mutara/optimizer";
+export { optimize, createOptimizer };
 const initial = version({ threshold: 0.5 }, digest({ task: "consumer" }));
 type Plan = BasePlan<typeof initial>;
 export function connect(adapter: Adapter<typeof initial, Plan, number>) {
@@ -38,6 +41,23 @@ export function connect(adapter: Adapter<typeof initial, Plan, number>) {
 }
 `);
   run(process.execPath, [join(directory, "node_modules/typescript/bin/tsc"), "--noEmit", "--strict", "--skipLibCheck", "--allowJs", "--checkJs", "--target", "ES2023", "--module", "NodeNext", "--moduleResolution", "NodeNext", "consumer.ts", "adapter.mjs"]);
+  writeFileSync(join(directory, "optimizer.mjs"), `import assert from "node:assert/strict";
+import { optimize } from "mutara/optimizer";
+let calls = 0;
+const options = {
+  id: "package-smoke", storage: "./optimizer.db",
+  implementation: { task: "package-smoke-v1" },
+  space: { x: { type: "float", min: 0, max: 1, initial: 0.5 } },
+  metrics: [{ name: "score", direction: "higher", weight: 1 }],
+  execute: async ({ x }) => { calls++; return { output: { score: x }, cost: 0 }; },
+  decision: { mode: "heuristic" }, recovery: "repeatable", budget: { trials: 2 },
+};
+const result = await optimize(options);
+assert.equal(result.executions, 4);
+assert.deepEqual(await optimize(options), result);
+assert.equal(calls, 4);
+`);
+  run(process.execPath, ["optimizer.mjs"]);
   console.log("PASS: clean install, copied adapter, real learning loop, TypeScript exports, and package contents.");
 } finally {
   rmSync(directory, { recursive: true, force: true });
