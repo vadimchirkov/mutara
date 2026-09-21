@@ -12,8 +12,8 @@ import { hashPolicy } from "../src/provenance.js";
 import { INITIAL_WEIGHTS, strategyVersion, snapshotMemory, weightedPolicy, proposers, availableFeatures, availableConditions, type Proposer, type Component } from "../src/learning/strategy.js";
 import { bootstrap95 } from "../src/learning/statistics.js";
 import { alchemyEvaluator } from "../src/learning/alchemy.js";
-import { coreId } from "mutara";
-import { digest } from "mutara";
+import { coreId } from "teob-mutara";
+import { digest } from "teob-mutara";
 import { implementation } from "../src/learning/strategy.js";
 import { createExperimentAggregate, decideCandidate, experimentHarness,
   type EpisodeResult, type ExperimentPlan, type Evaluator, type ExperimentEvent } from "../src/learning/experiment.js";

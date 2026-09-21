@@ -55,7 +55,7 @@ of quality on real tasks.
 ## Install in your project
 
 ```bash
-pnpm add mutara
+pnpm add teob-mutara
 ```
 
 The package includes ESM JavaScript, TypeScript declarations and the agent
@@ -65,9 +65,9 @@ skill. Private Alchemy recipes, journals and `.env` are excluded.
 
 | Need | Use |
 |---|---|
-| Tune numeric parameters or a fixed list of prompt/tool variants | `optimize` from `mutara/optimizer` |
-| Same search, with manual recovery, rollback or a custom wait timeout | `createOptimizer` from `mutara/optimizer` + `learnerHarness` from `mutara/sqlite` |
-| Custom candidate generation, hard quality gates or delayed evaluation | `Adapter` from `mutara` + `learnerHarness` |
+| Tune numeric parameters or a fixed list of prompt/tool variants | `optimize` from `teob-mutara/optimizer` |
+| Same search, with manual recovery, rollback or a custom wait timeout | `createOptimizer` from `teob-mutara/optimizer` + `learnerHarness` from `teob-mutara/sqlite` |
+| Custom candidate generation, hard quality gates or delayed evaluation | `Adapter` from `teob-mutara` + `learnerHarness` |
 
 All three use the same experiment engine. The built-in optimizer uses seeded
 random search: it samples each parameter independently, then compares the
@@ -82,7 +82,7 @@ recovery. This local deterministic example uses an explicit heuristic decision:
 Save as `optimize.mjs` in your application and run `node optimize.mjs`:
 
 ```js
-import { optimize } from "mutara/optimizer";
+import { optimize } from "teob-mutara/optimizer";
 
 const execute = async (config) => ({
   output: { error: (Number(config.x) - 1) ** 2 },
@@ -116,7 +116,7 @@ application and replace its task, data, candidates, and acceptance rule with
 yours. Then:
 
 ```js
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, plan } from "./adapter.mjs";
 
 const learner = learnerHarness("./learning.db", adapter);
@@ -157,7 +157,7 @@ ln -s /absolute/path/to/mutara/skills/mutara ~/.codex/skills/mutara
 If a skill with that name already exists, do not overwrite it. For a different
 agent, copy the **entire** `skills/mutara` directory into its skills folder.
 The skill is also included in the installed npm package:
-`node_modules/mutara/skills/mutara`.
+`node_modules/teob-mutara/skills/mutara`.
 
 Example prompt:
 
@@ -181,7 +181,7 @@ results, and ceiling analysis.
 
 ## Structure and checks
 
-- `src/` — library; public imports: `mutara`, `mutara/sqlite`, `mutara/optimizer`.
+- `src/` — library; public imports: `teob-mutara`, `teob-mutara/sqlite`, `teob-mutara/optimizer`.
 - `examples/` — game starters (tictactoe, connect4, pig, kuhn), alchemy benchmark, minimal integration.
 - `skills/mutara/` — portable skill and adapter template.
 - `test/` — library tests; `scripts/check-package.mjs` — clean install check.

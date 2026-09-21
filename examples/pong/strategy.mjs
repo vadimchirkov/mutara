@@ -3,7 +3,7 @@
 // voting for {up, stay, down} each decision frame. X always learns, O is the
 // fixed deadband tracker. Pure, deterministic, finite JSON.
 import { readFileSync } from "node:fs";
-import { digest } from "mutara";
+import { digest } from "teob-mutara";
 import { COURT, PADDLE_H, rng } from "./game.mjs";
 
 export const implementation = {

@@ -30,9 +30,9 @@ try {
     .replace("../skills/mutara/assets/adapter.mjs", "./adapter.mjs");
   writeFileSync(join(directory, "demo.mjs"), demo);
   console.log(run(process.execPath, ["demo.mjs"]).trim());
-  writeFileSync(join(directory, "consumer.ts"), `import { version, digest, type Adapter, type BasePlan } from "mutara";
-import { learnerHarness } from "mutara/sqlite";
-import { optimize, createOptimizer } from "mutara/optimizer";
+  writeFileSync(join(directory, "consumer.ts"), `import { version, digest, type Adapter, type BasePlan } from "teob-mutara";
+import { learnerHarness } from "teob-mutara/sqlite";
+import { optimize, createOptimizer } from "teob-mutara/optimizer";
 export { optimize, createOptimizer };
 const initial = version({ threshold: 0.5 }, digest({ task: "consumer" }));
 type Plan = BasePlan<typeof initial>;
@@ -42,7 +42,7 @@ export function connect(adapter: Adapter<typeof initial, Plan, number>) {
 `);
   run(process.execPath, [join(directory, "node_modules/typescript/bin/tsc"), "--noEmit", "--strict", "--skipLibCheck", "--allowJs", "--checkJs", "--target", "ES2023", "--module", "NodeNext", "--moduleResolution", "NodeNext", "consumer.ts", "adapter.mjs"]);
   writeFileSync(join(directory, "optimizer.mjs"), `import assert from "node:assert/strict";
-import { optimize } from "mutara/optimizer";
+import { optimize } from "teob-mutara/optimizer";
 let calls = 0;
 const options = {
   id: "package-smoke", storage: "./optimizer.db",

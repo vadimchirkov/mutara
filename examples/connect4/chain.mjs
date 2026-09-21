@@ -1,6 +1,6 @@
 // Supervisor chain for Connect-4. Same pattern as ../tictactoe/chain.mjs:
 // new ID + fresh seeds per link, champion handoff, resume from journal.
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, buildPlan, evaluate } from "./experiment.mjs";
 import { initialVersion } from "./strategy.mjs";
 

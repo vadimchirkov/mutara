@@ -3,7 +3,7 @@
 // same pattern as ../tictactoe/chain.mjs. Regrets and the average strategy
 // live in the version, so the handoff loses nothing. New IDs + new DB.
 // Uses only public exports: mutara/sqlite.
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, buildCfrPlan, finalPolicy, initialVersion } from "./cfr.mjs";
 import { exploitability, ev } from "./game.mjs";
 import { HONEST, TRICKY } from "./strategy.mjs";

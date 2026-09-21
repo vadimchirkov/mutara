@@ -3,7 +3,7 @@
 // (reusing one small set across links would overfit it); the final held-out
 // never takes part in selection. Killable/restartable: finished links resume
 // from journal without re-executing. Uses only public exports: mutara/sqlite.
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, buildPlan, evaluate } from "./experiment.mjs";
 import { initialVersion } from "./strategy.mjs";
 

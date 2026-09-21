@@ -1,7 +1,7 @@
 // Structural search space for Connect-4: MCTS params + component priors.
 // Same contract as examples/tictactoe/strategy.mjs. Pure, finite JSON.
 import { readFileSync } from "node:fs";
-import { digest } from "mutara";
+import { digest } from "teob-mutara";
 import { COLS, rng, legalMoves, apply, winner, isDraw, plies } from "./game.mjs";
 
 export const implementation = {

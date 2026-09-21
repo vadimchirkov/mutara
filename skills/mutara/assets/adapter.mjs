@@ -1,6 +1,6 @@
 // Copy into the host project and replace this small classifier with its real task.
 import { readFileSync } from "node:fs";
-import { digest, version, validateVersion } from "mutara";
+import { digest, version, validateVersion } from "teob-mutara";
 
 /** @typedef {{ threshold: number, cases: [number, boolean][] }} Input */
 /** @type {[number, boolean][]} */

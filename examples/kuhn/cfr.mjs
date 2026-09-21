@@ -4,7 +4,7 @@
 // propose = regret matching, execute = exact tree walks, assess = update +
 // always accept (CFR converges in the average, not by selection).
 import { readFileSync } from "node:fs";
-import { digest } from "mutara";
+import { digest } from "teob-mutara";
 
 export const implementation = {
   game: "kuhn-cfr-v1",

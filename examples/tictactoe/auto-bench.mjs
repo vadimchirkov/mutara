@@ -1,7 +1,7 @@
 // Machine-dictionary benchmark. New ID + new DB. Uses only public exports.
 // Held-out reuses the human run's 200 seeds (2_000_000+i): valid (held-out
 // never selects) and paired — machine vs human move by move.
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, buildAutoPlan, evaluate, initialVersion } from "./auto.mjs";
 import { evaluate as evaluateHuman } from "./experiment.mjs";
 import { strategyVersion as humanVersion, INITIAL_PARAMS } from "./strategy.mjs";

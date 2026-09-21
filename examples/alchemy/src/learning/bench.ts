@@ -13,7 +13,7 @@ import { createExperimentAggregate, decideCandidate, experimentHarness, mean,
   type ExperimentEvent, type ExperimentPlan, type ExperimentState, type EpisodeResult } from "./experiment.js";
 import { alchemyEvaluator } from "./alchemy.js";
 import { bootstrap95 } from "./statistics.js";
-import { coreId } from "mutara";
+import { coreId } from "teob-mutara";
 
 const flags = process.argv.slice(2);
 const components = flags.includes("--components");

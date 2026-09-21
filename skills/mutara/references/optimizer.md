@@ -7,7 +7,7 @@ dimensions. Candidates are compared with the current champion, which changes
 only after acceptance. There is no automatic production configuration update.
 
 ```js
-import { optimize } from "mutara/optimizer";
+import { optimize } from "teob-mutara/optimizer";
 
 const execute = async (config) => ({
   output: { error: (Number(config.x) - 1) ** 2 },
@@ -133,8 +133,8 @@ does not cancel external work. For longer runs, explicit lifecycle control,
 manual reconciliation or rollback, use the same options with `createOptimizer`:
 
 ```js
-import { createOptimizer } from "mutara/optimizer";
-import { learnerHarness } from "mutara/sqlite";
+import { createOptimizer } from "teob-mutara/optimizer";
+import { learnerHarness } from "teob-mutara/sqlite";
 
 // options: original optimizer options, including id, storage and execute.
 const { adapter, plan } = createOptimizer(options);

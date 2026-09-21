@@ -37,7 +37,7 @@ the host automatically. Preserve the existing strategy as a fallback.
 
 The installed package bundles this skill. To find it programmatically, resolve
 `mutara`'s entrypoint (`dist/index.js`):
-`new URL("../skills/mutara/", import.meta.resolve("mutara"))` locates the skill.
+`new URL("../skills/mutara/", import.meta.resolve("teob-mutara"))` locates the skill.
 In the checkout the path is `skills/mutara`.
 
 ## Choose the smallest integration

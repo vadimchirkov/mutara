@@ -1,7 +1,7 @@
 // Search space for Kuhn: a 12-number information-set policy on a 0.1 grid.
 // Proposer nudges one dim ±0.1. Pure, finite JSON, same contract as siblings.
 import { readFileSync } from "node:fs";
-import { digest } from "mutara";
+import { digest } from "teob-mutara";
 import { rng } from "./game.mjs";
 
 export const implementation = {

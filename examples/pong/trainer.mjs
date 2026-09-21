@@ -4,7 +4,7 @@
 // argv: [storage] [baseline=deadband|predictive]. A new baseline retires old
 // IDs (different experiment); strategy.mjs edits likewise retired v1 journals.
 import { writeFileSync } from "node:fs";
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, buildPlan, evaluate } from "./experiment.mjs";
 import { initialVersion, strategyVersion, PREDICTIVE } from "./strategy.mjs";
 

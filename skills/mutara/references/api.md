@@ -11,8 +11,8 @@ built-in `Version<Config>` containing `id`, `parentId`, `implementationId`, `con
 import {
   createLearner, version, validateVersion, digest, canonical,
   boundedDecision, type Adapter, type BasePlan, type Version,
-} from "mutara";
-import { learnerHarness } from "mutara/sqlite";
+} from "teob-mutara";
+import { learnerHarness } from "teob-mutara/sqlite";
 ```
 
 `version(config, implementationId, parentId = null)` clones finite JSON and hashes

@@ -1,6 +1,6 @@
 // Alchemy compatibility adapter. The lifecycle lives in self-learning/engine.ts.
-import { createLearner, type Adapter, type State, type Event, type Trial } from "mutara";
-import { learnerHarness } from "mutara/sqlite";
+import { createLearner, type Adapter, type State, type Event, type Trial } from "teob-mutara";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { implementation, proposers, weightedPolicy, restoreMemory,
   type StrategyVersion, type MemorySnapshot, type SearchMethod, type Proposer } from "./strategy.js";
 

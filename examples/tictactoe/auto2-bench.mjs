@@ -1,7 +1,7 @@
 // Round 2: feedback-driven refinements. New ID + new DB.
 // Pre-registered bet: paired held-out gap vs the human champion within ±0.03
 // (v1: -0.1375). Held-out: the same 200 seeds; paired vs human AND vs v1.
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, buildAutoPlan, evaluate, v1Champion } from "./auto2.mjs";
 import { evaluate as evaluateHuman } from "./experiment.mjs";
 import { strategyVersion as humanVersion, INITIAL_PARAMS } from "./strategy.mjs";

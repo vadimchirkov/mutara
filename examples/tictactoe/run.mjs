@@ -2,7 +2,7 @@
 // No core changes. Uses only public exports: mutara/optimizer.
 // Wiring demo (heuristic), not proof of strength — see README.
 // Shared logic lives in tuning.mjs (importable by the smoke test).
-import { optimize } from "mutara/optimizer";
+import { optimize } from "teob-mutara/optimizer";
 import { playGame, execute, implementation, space, BASELINE } from "./tuning.mjs";
 
 const id = process.argv[2] ?? "ttt-mcts-v3";

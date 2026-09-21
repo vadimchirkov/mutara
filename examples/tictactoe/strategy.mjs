@@ -2,7 +2,7 @@
 // Optimizer cannot express this (fixed dims only), so a custom Adapter is
 // warranted per skills/mutara/SKILL.md. Pure, deterministic, finite JSON.
 import { readFileSync } from "node:fs";
-import { digest } from "mutara";
+import { digest } from "teob-mutara";
 import { rng, legalMoves, apply, winner } from "./game.mjs";
 import { mctsMove } from "./mcts.mjs";
 

@@ -1,7 +1,7 @@
 // Structural search space for Pig: MCTS params + component priors over
 // {roll, hold}. Same contract as ../tictactoe/strategy.mjs. Pure, finite JSON.
 import { readFileSync } from "node:fs";
-import { digest } from "mutara";
+import { digest } from "teob-mutara";
 import { TARGET, rng, legalMoves, apply, winner } from "./game.mjs";
 
 export const implementation = {

@@ -1,6 +1,6 @@
 // Connect-4 component-search benchmark. New ID + new DB per run.
 // Uses only public exports: mutara/sqlite.
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, buildPlan, evaluate } from "./experiment.mjs";
 import { initialVersion } from "./strategy.mjs";
 

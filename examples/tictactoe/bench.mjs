@@ -1,6 +1,6 @@
 // Component-search benchmark. New experiment ID + new DB per method run;
 // old journals stay untouched. Uses only public exports: mutara/sqlite.
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, buildPlan, evaluate } from "./experiment.mjs";
 import { initialVersion } from "./strategy.mjs";
 

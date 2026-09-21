@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { learnerHarness } from "mutara/sqlite";
+import { learnerHarness } from "teob-mutara/sqlite";
 import { adapter, plan } from "../skills/mutara/assets/adapter.mjs";
 
 const learner = learnerHarness(":memory:", adapter);

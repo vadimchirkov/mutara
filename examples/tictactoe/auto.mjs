@@ -6,7 +6,7 @@
 // n=48 — Hoeffding penalty ~0.5 dwarfs realistic gains; honest admission,
 // not a gate). Self-contained: strategy.mjs untouched, old IDs stay valid.
 import { readFileSync } from "node:fs";
-import { digest, boundedDecision } from "mutara";
+import { digest, boundedDecision } from "teob-mutara";
 import { emptyBoard, winner, isDraw, apply, rng, legalMoves } from "./game.mjs";
 import { mctsMove } from "./mcts.mjs";
 import { FEATURES } from "./auto-features.mjs";
