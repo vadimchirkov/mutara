@@ -225,3 +225,20 @@ it("uses a bounded confidence gate with a multiple-comparison penalty", () => {
   expect(boundedDecision(Array(100).fill(0), options).accepted).toBe(false);
   expect(() => boundedDecision([2], options)).toThrow("Invalid");
 });
+
+it("starts once via startOrResume and reuses the finished state", async () => {
+  const db = path("start-or-resume");
+  const execute = vi.fn(adapter().execute);
+  const h = learnerHarness(db, adapter({ execute }));
+  try {
+    const resumed = await h.startOrResume("score", plan());
+    expect(resumed.status).toBe("running");
+    const final = await h.wait("score");
+    expect(final.champion?.config.value).toBe(2);
+    expect(execute).toHaveBeenCalledTimes(2);
+    const again = await h.startOrResume("score", plan());
+    expect(again).toEqual(await h.state("score"));
+    expect(await h.wait("score")).toEqual(final);
+    expect(execute).toHaveBeenCalledTimes(2);
+  } finally { await h.close(); }
+});

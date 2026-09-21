@@ -126,9 +126,8 @@ export async function optimize(opts: OptimizeOptions): Promise<OptimizerResult> 
   const { adapter, plan } = createOptimizer(opts);
   const h = learnerHarness(opts.storage ?? ":memory:", adapter);
   try {
-    const saved = await h.state(opts.id);
-    if (saved.status === "idle") await h.start(opts.id, plan);
-    else if (saved.coreId !== coreId || saved.adapterId !== digest({ implementation: adapter.implementation, recovery: adapter.recovery }) ||
+    const saved = await h.startOrResume(opts.id, plan);
+    if (saved.coreId !== coreId || saved.adapterId !== digest({ implementation: adapter.implementation, recovery: adapter.recovery }) ||
         canonical(saved.plan) !== canonical(plan)) throw new Error("Recorded optimizer implementation or plan changed; use a new experiment ID");
     const state = await h.wait(opts.id);
     const history = state.trials.map((trial) => ({

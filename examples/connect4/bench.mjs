@@ -10,8 +10,7 @@ const storage = process.argv[3] ?? "./examples/connect4/learning.db";
 const plan = buildPlan({ rounds: 10, seed: 7919, minimumGain: 0.02 });
 const learner = learnerHarness(storage, adapter);
 try {
-  const saved = await learner.state(id);
-  if (saved.status === "idle") await learner.start(id, plan);
+  await learner.startOrResume(id, plan);
   const state = await learner.wait(id);
   console.log(JSON.stringify({
     trials: state.trials.length,

@@ -10,8 +10,7 @@ const storage = process.argv[3] ?? "./examples/tictactoe/components.db";
 const plan = buildPlan({ rounds: 12, seed: 7919, minimumGain: 0.02 });
 const learner = learnerHarness(storage, adapter);
 try {
-  const saved = await learner.state(id);
-  if (saved.status === "idle") await learner.start(id, plan);
+  await learner.startOrResume(id, plan);
   const state = await learner.wait(id);
   const accepted = state.trials.filter((t) => t.accepted);
   console.log(JSON.stringify({

@@ -140,8 +140,7 @@ import { learnerHarness } from "mutara/sqlite";
 const { adapter, plan } = createOptimizer(options);
 const learner = learnerHarness(options.storage, adapter);
 try {
-  const saved = await learner.state(options.id);
-  if (saved.status === "idle") await learner.start(options.id, plan);
+  await learner.startOrResume(options.id, plan);
   const state = await learner.wait(options.id, 30 * 60_000);
   console.log(state.champion.config); // Harness exposes the full Version.
 } finally {

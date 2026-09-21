@@ -23,8 +23,7 @@ try {
       trainingSeeds: Array.from({ length: SEEDS_PER_SET }, (_, k) => i * 10_000 + 101 + k),
       validationSeeds: Array.from({ length: SEEDS_PER_SET }, (_, k) => i * 10_000 + 1001 + k),
     });
-    const saved = await learner.state(id);
-    if (saved.status === "idle") await learner.start(id, plan);
+    await learner.startOrResume(id, plan);
     const state = await learner.wait(id);
     links.push({
       id,

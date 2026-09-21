@@ -62,6 +62,9 @@ Create the parent directory before using a nested database path. `:memory:` is
 useful for a smoke test, but cannot recover across processes.
 
 - `start(id, plan)` rejects starting the same persisted experiment twice.
+- `startOrResume(id, plan)` starts from `idle`, otherwise returns the saved
+  state. Same mismatch semantics as the manual pattern: a different plan or
+  adapter fails at `wait`, not here.
 - `state(id)` returns a copy and activates recovery for that entity if necessary.
 - `wait(id, timeoutMs = 300000)` waits for `finished`; rejects on `failed`,
   `blocked` or timeout. Timeout does **not** cancel the executor or roll back effects.

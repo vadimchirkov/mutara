@@ -32,6 +32,18 @@ export function learnerHarness<V extends Identity, P extends BasePlan<V>, E>(pat
   }
   return { state, send,
     start: (id: string, plan: P) => send(id, { tag: "start", plan }),
+    // Ensure-started: the `state → start only from idle` pattern every consumer
+    // rewrote by hand. Not a reconciliation: resuming with a different plan or
+    // adapter fails later at `wait` via the recorded-implementation check,
+    // exactly as the manual pattern did.
+    async startOrResume(id: string, plan: P) {
+      const saved = await state(id);
+      if (saved.status === "idle") {
+        await send(id, { tag: "start", plan });
+        return state(id);
+      }
+      return saved;
+    },
     async wait(id: string, timeoutMs = 300_000) {
       let s = await state(id);
       if (s.status === "running") {

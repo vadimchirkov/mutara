@@ -11,8 +11,7 @@ const storage = process.argv[3] ?? "./examples/kuhn/learning.db";
 const plan = buildPlan({ rounds: 48, seed: 7919, minimumGain: 0.002 });
 const learner = learnerHarness(storage, adapter);
 try {
-  const saved = await learner.state(id);
-  if (saved.status === "idle") await learner.start(id, plan);
+  await learner.startOrResume(id, plan);
   const state = await learner.wait(id);
   console.log(JSON.stringify({
     trials: state.trials.length,
