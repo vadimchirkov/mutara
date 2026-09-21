@@ -21,6 +21,8 @@ import * as kuhn from "../examples/kuhn/experiment.mjs";
 import * as kuhnCfr from "../examples/kuhn/cfr.mjs";
 // @ts-ignore — examples are untyped .mjs starters, imported deliberately.
 import * as auto from "../examples/tictactoe/auto.mjs";
+// @ts-ignore — examples are untyped .mjs starters, imported deliberately.
+import * as auto2 from "../examples/tictactoe/auto2.mjs";
 
 function withDatabase(run: (storage: string) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "mutara-examples-smoke-"));
@@ -156,6 +158,27 @@ describe("game starter smoke", () => {
         });
         await h.start("ttt-auto-smoke", plan);
         const state = await h.wait("ttt-auto-smoke");
+        expect(state.status).toBe("finished");
+        expect(state.trials).toHaveLength(1);
+        expect(state.executions).toBe(4);
+        expect(state.champion?.id).toBeTypeOf("string");
+      } finally {
+        await h.close();
+      }
+    });
+  });
+
+  it("round-2 adapter runs one round to finish", async () => {
+    await withDatabase(async (storage) => {
+      const h = learnerHarness(storage, auto2.adapter);
+      try {
+        const plan = auto2.buildAutoPlan({
+          rounds: 1,
+          trainingSeeds: [101, 102, 103, 104],
+          validationSeeds: [1001, 1002, 1003, 1004],
+        });
+        await h.start("ttt-auto2-smoke", plan);
+        const state = await h.wait("ttt-auto2-smoke");
         expect(state.status).toBe("finished");
         expect(state.trials).toHaveLength(1);
         expect(state.executions).toBe(4);

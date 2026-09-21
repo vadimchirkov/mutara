@@ -106,3 +106,29 @@ re-emerged via `twoInRow`, safety via `safeMove`) but does not match human
 knowledge. The bounded lower bound is reported in every trial reason and is
 honestly vacuous at n=48 (Hoeffding penalty ~0.5 dwarfs gains) — the verdict
 comes from the held-out, not the gate.
+
+## Round 2: feedback-driven refinements (bet registered, narrowly missed)
+
+Pre-registered bet: paired gap vs human within ±0.03 (v1: −0.1375).
+Feedback was the paired loss pattern (ceded center, missed wins).
+Generator wrote 8 refinements in one shot (`auto2-features.mjs`) — surgical
+atoms allowed this time; if the loop rediscovers win-taking, that IS the
+finding. Quarantine: 22/22 PASS, pinned. Dictionary = v1 14 + v2 8.
+Initial = v1 champion by reconstruction (new implementation id, new
+experiment `ttt-auto-v2`, new DB). Screening covers the 8 new features,
+then free combines; same gate, same seeds.
+
+```bash
+node examples/tictactoe/auto2-bench.mjs ttt-auto-v2 ./examples/tictactoe/auto2.db
+```
+
+Measured once (20 rounds, ~3 s): 20 trials, 1 accepted — `completesWin`
+added immediately (+0.052/+0.125). `stopsWin` rejected on train, `freeCenter`
+train-positive but validation-negative (correctly caught — twice, at 0.5 and
+1). Champion = v1 trio + `completesWin`. Machine `0.7925 (134W/49D/17L)` vs
+human `0.8325`, paired `−0.04`.
+
+Bet missed by 0.01 — and there will be no v3, on purpose: the supervisor has
+now looked at the held-out twice, and a third round aimed at the remaining
+hundredth would start fitting the verdict set. The loop converges (−0.1375 →
+−0.04); the stopping rule is discipline, not budget.
