@@ -1,24 +1,38 @@
 # Mutara
 
-**Selection with a journal: propose → measure → keep the winner.**
+**Gated experiment harness — journal every trial, gate every promotion, recover every crash.**
 
-Mutara is the loop around self-learning, not the learning itself. Your side
-learns — policies, prompts, MCTS, CFR, a feature generator. Mutara proposes
-candidates, measures them on pinned cases, keeps only gated improvements, and
-journals every step, so a crash never loses the lesson and a rerun never
-re-pays it. Close the loop with a supervisor chain and the machine drives
-itself: bounded experiments, unattended, each link resuming from the journal.
+Optimizers generate candidates. Mutara decides whether to keep them.
 
-You supply the task runner and quality measurements. Mutara supplies candidate
-search, accept/reject decisions, budget accounting and a recoverable SQLite
-journal through [TEOB](https://github.com/lambda-house/teob-ts). It does not train model weights or update your production
-agent automatically. Rejected candidates leave the current strategy in place.
+You bring the candidate source (GEPA, Bayesian optimization, a hand-picked
+list, or the built-in random search) and the task runner. Mutara runs each
+candidate against pinned cases, applies your acceptance rule, tracks cost,
+and journals the decision to a recoverable SQLite store through
+[TEOB](https://github.com/lambda-house/teob-ts). A crash mid-trial resumes
+from the journal — no lost lesson, no double spend.
 
 ```text
-current strategy → candidate → execution → evaluation → accept / reject
-                                      ↓
-                          journal, budget, recovery
+generator → candidate → execution → evaluation → accept / reject
+                                         ↓
+                             journal · budget · recovery
 ```
+
+Rejected candidates leave the current champion in place. Accepted ones become
+the new champion. Mutara does not deploy the champion — it tells you who won.
+
+## Why not Optuna / DSPy / W&B?
+
+| | Optuna | DSPy/GEPA | W&B / MLflow | Mutara |
+|---|---|---|---|---|
+| Candidate generation | Strong (TPE, BO) | Strong (prompt evolution) | None | Weak built-in; plug in any external |
+| Crash recovery | Retry = re-run, cost paid twice | None | None (tracker) | Resumes mid-trial, no double spend |
+| Cost accounting | None | None | Logs, doesn't limit | Budget with verification |
+| Accept/reject gate | None (best trial) | Internal metric | Manual review | Explicit, configurable |
+| Plug external generator | No | No | N/A | Yes (`Adapter`) |
+| Language | Python | Python | Python + UI | TypeScript |
+
+Mutara is not a better optimizer — it is the promotion layer that sits between
+any optimizer and your production configuration.
 
 ## Use cases
 
@@ -38,9 +52,7 @@ scheduling, browser agents, and other measurable tasks.
 
 ## Quick start
 
-Requires Node.js 22+ and pnpm. Dependencies install from npm; a sibling TEOB
-checkout is not required. For SQLite, a system compiler is needed when no
-prebuilt binary module is available.
+Requires Node.js 22+ and pnpm.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -48,9 +60,9 @@ pnpm demo
 ```
 
 The demo tunes a small classifier threshold. It accepts two improvements,
-rejects a degradation, and changes the threshold from `0.9` to `0.5`. Fully
-local, no API keys or paid requests. This is a connectivity check, not proof
-of quality on real tasks.
+rejects a candidate that improves training accuracy but regresses on separate
+validation cases, and changes the threshold from `0.9` to `0.5`. Fully
+local, no API keys or paid requests.
 
 ## Install in your project
 
@@ -59,61 +71,27 @@ pnpm add teob-mutara
 ```
 
 The package includes ESM JavaScript, TypeScript declarations and the agent
-skill. Private Alchemy recipes, journals and `.env` are excluded.
+skill.
 
 ## Choose an API
 
 | Need | Use |
 |---|---|
-| Tune numeric parameters or a fixed list of prompt/tool variants | `optimize` from `teob-mutara/optimizer` |
-| Same search, with manual recovery, rollback or a custom wait timeout | `createOptimizer` from `teob-mutara/optimizer` + `learnerHarness` from `teob-mutara/sqlite` |
 | Custom candidate generation, hard quality gates or delayed evaluation | `Adapter` from `teob-mutara` + `learnerHarness` |
+| Tune numeric parameters or a fixed list of variants with defaults | `optimize` from `teob-mutara/optimizer` |
+| Same search, with manual recovery, rollback or a custom wait timeout | `createOptimizer` from `teob-mutara/optimizer` + `learnerHarness` from `teob-mutara/sqlite` |
 
-All three use the same experiment engine. The built-in optimizer uses seeded
-random search: it samples each parameter independently, then compares the
-candidate against the current champion. It does not invent prompts or tools.
+The `Adapter` is the primary interface — it describes six things: strategy
+configuration, candidate generation, task execution, result evaluation,
+acceptance rule, and limits. The built-in optimizer synthesizes an adapter
+from a parameter space description; it uses seeded random search and is a
+convenience shortcut, not the core.
 
-## Tune parameters
-
-Describe a parameter space and measured objective. `optimize` synthesizes the
-same adapter used by the core; one experiment owns its history, budget and
-recovery. This local deterministic example uses an explicit heuristic decision:
-
-Save as `optimize.mjs` in your application and run `node optimize.mjs`:
-
-```js
-import { optimize } from "teob-mutara/optimizer";
-
-const execute = async (config) => ({
-  output: { error: (Number(config.x) - 1) ** 2 },
-  cost: 0,
-});
-const result = await optimize({
-  id: "quadratic-v1",
-  space: { x: { type: "float", min: -10, max: 10, initial: 5 } },
-  metrics: [{ name: "error", direction: "lower", weight: 1 }],
-  implementation: { execute: execute.toString() }, // self-contained pure function
-  execute,
-  recovery: "repeatable",
-  decision: { mode: "heuristic" },
-  budget: { trials: 25 },
-  storage: "./optimizer.db",
-});
-console.log(result.champion); // Plain configuration, e.g. { x: ... }
-console.log(result.totalTrials, result.executions, result.spent);
-```
-
-Reopen with the same ID and options to resume. Use a new ID for a different
-experiment. This example proves wiring, not gains on an application task.
-
-See the [optimizer contract and examples](skills/mutara/references/optimizer.md)
-for parameter types, decision modes, cost planning, recovery and defaults.
-
-## Customize the experiment
+## Bring your own candidates
 
 Copy the [ready-made adapter](skills/mutara/assets/adapter.mjs) into your
 application and replace its task, data, candidates, and acceptance rule with
-yours. Then:
+yours:
 
 ```js
 import { learnerHarness } from "teob-mutara/sqlite";
@@ -133,12 +111,44 @@ try {
 same ID. Use a new ID for a different experiment. Changing an experiment's
 champion does not change your application's configuration by itself.
 
-The adapter describes six things: strategy configuration, candidate
-generation, task execution, result evaluation, acceptance rule, and limits.
 Full [API contract](skills/mutara/references/api.md),
 [evaluation methodology](skills/mutara/references/evaluation.md), and
 [recovery/rollback](skills/mutara/references/operations.md) are in the skill
 references.
+
+For a complete example with fixed external prompt candidates, a validation gate,
+a hard quality constraint, and a separate report-only final test, see
+[prompt-gate](examples/prompt-gate/README.md). Both stages have resumable journals.
+
+## Tune parameters (shortcut)
+
+When candidates are just numeric ranges or a fixed list, `optimize` builds
+the adapter for you:
+
+```js
+import { optimize } from "teob-mutara/optimizer";
+
+const execute = async (config) => ({
+  output: { error: (Number(config.x) - 1) ** 2 },
+  cost: 0,
+});
+const result = await optimize({
+  id: "quadratic-v1",
+  space: { x: { type: "float", min: -10, max: 10, initial: 5 } },
+  metrics: [{ name: "error", direction: "lower", weight: 1 }],
+  implementation: { execute: execute.toString() },
+  execute,
+  recovery: "repeatable",
+  decision: { mode: "heuristic" },
+  budget: { trials: 25 },
+  storage: "./optimizer.db",
+});
+console.log(result.champion);
+console.log(result.totalTrials, result.executions, result.spent);
+```
+
+See the [optimizer contract and examples](skills/mutara/references/optimizer.md)
+for parameter types, decision modes, cost planning, recovery and defaults.
 
 ## Skill for agents
 
@@ -182,7 +192,7 @@ results, and ceiling analysis.
 ## Structure and checks
 
 - `src/` — library; public imports: `teob-mutara`, `teob-mutara/sqlite`, `teob-mutara/optimizer`.
-- `examples/` — game starters (tictactoe, connect4, pig, kuhn), alchemy benchmark, minimal integration.
+- `examples/` — game starters (tictactoe, connect4, pig, kuhn), prompt gate, alchemy benchmark, minimal integration.
 - `skills/mutara/` — portable skill and adapter template.
 - `test/` — library tests; `scripts/check-package.mjs` — clean install check.
 
