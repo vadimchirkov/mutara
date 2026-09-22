@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
-  "description": "Test new agent strategies, keep measured improvements, and recover every experiment with TEOB.",
+  "description": "Gated experiment harness — journal every trial, gate every promotion, recover every crash.",
   "repository": {
     "type": "git",
     "url": "https://github.com/vadimchirkov/mutara.git"
@@ -33,7 +33,11 @@
     "README.md",
     "docs",
     "skills/mutara",
-    "examples/minimal.mjs"
+    "examples/minimal.mjs",
+    "examples/prompt-gate/*.mjs",
+    "examples/prompt-gate/proposals.json",
+    "examples/prompt-gate/fixtures/*.json",
+    "examples/prompt-gate/README.md"
   ],
   "scripts": {
     "play": "tsx examples/alchemy/src/play.ts",
