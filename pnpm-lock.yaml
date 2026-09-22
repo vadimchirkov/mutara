@@ -21,9 +21,6 @@ importers:
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.3
-      '@typesafe-ai/sdk':
-        specifier: ^0.6.0
-        version: 0.6.0
       better-sqlite3:
         specifier: ^12.11.1
         version: 12.11.1
@@ -512,10 +509,6 @@ packages:
 
   '@types/node@22.20.3':
     resolution: {integrity: sha512-DZmzkmwHzXrLPAXPyKNDzlIwMMUZCVacoD25ywdy5YTKGbOx/2ld+Q38Im2zJ0vBuZP5Prd3VZutKZyXwkOS8A==}
-
-  '@typesafe-ai/sdk@0.6.0':
-    resolution: {integrity: sha512-IddX+Q0XM+VagOUZFeP7wZjaO4SHMdvnh2zEBdrZZnXedWI3BNK1lKhMx3ayrkFWvVLbVcUHJy6AVZlY+e6Jaw==}
-    engines: {node: '>=20'}
 
   '@vitest/expect@2.1.9':
     resolution: {integrity: sha512-UJCIkTBenHeKT1TTlKMJWy1laZewsRIzYighyYiJKZreqtdxSos/S1t+ktRMQWu2CKqaarrkeszJx1cgC5tGZw==}
@@ -1210,8 +1203,6 @@ snapshots:
   '@types/node@22.20.3':
     dependencies:
       undici-types: 6.21.0
-
-  '@typesafe-ai/sdk@0.6.0': {}
 
   '@vitest/expect@2.1.9':
     dependencies:

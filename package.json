@@ -61,7 +61,6 @@
     "@clack/prompts": "^1.8.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.2",
-    "@typesafe-ai/sdk": "^0.6.0",
     "better-sqlite3": "^12.11.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
