@@ -1,0 +1,11 @@
+{
+  "provenance": {
+    "source": "Hand-authored smoke fixtures, not GEPA output or measured LLM results",
+    "revision": 1
+  },
+  "initial": "Classify the message as cancel or other. Return only the label.",
+  "candidates": [
+    "Return cancel when a cancellation or refund is mentioned; otherwise return other.",
+    "Return cancel only when the customer explicitly requests cancellation of an active order or subscription. Questions about policy, negated requests, already cancelled items, and refunds alone are other. Return only cancel or other."
+  ]
+}

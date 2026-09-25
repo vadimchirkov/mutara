@@ -1,6 +1,6 @@
 // Test the distributable in a clean application, without the repository's node_modules.
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, copyFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, copyFileSync, cpSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,10 +18,12 @@ try {
   run("pnpm", ["pack", "--out", archive], root);
   writeFileSync(join(directory, "package.json"), JSON.stringify({ private: true, type: "module" }));
   run("npm", ["install", "--no-audit", "--no-fund", archive, "typescript@5.7.3", "@types/node@22"]);
-  const installed = join(directory, "node_modules/mutara");
+  const installed = join(directory, "node_modules/teob-mutara");
   const files = readdirSync(installed, { recursive: true }).map(String);
   assert(!files.some((name) => /(^|[/\\])(?:\.env(?:\..*)?|data|AGENT-JOURNAL-HYPOTHESIS\.md)(?:[/\\]|$)/.test(name)));
   assert(!files.some((name) => name.startsWith("examples/alchemy")));
+  assert(!files.some((name) => name.startsWith("examples/crypto-paper")));
+  assert(!files.some((name) => /\.(?:db|sqlite|sqlite3)(?:-(?:shm|wal))?$/.test(name)));
   const manifest = JSON.parse(readFileSync(join(installed, "package.json"), "utf8"));
   assert.equal(manifest.dependencies["@lambda-house/teob-ts"], "0.4.2");
   assert(files.includes("skills/mutara/SKILL.md"));
@@ -30,6 +32,13 @@ try {
     .replace("../skills/mutara/assets/adapter.mjs", "./adapter.mjs");
   writeFileSync(join(directory, "demo.mjs"), demo);
   console.log(run(process.execPath, ["demo.mjs"]).trim());
+  cpSync(join(installed, "examples/prompt-gate"), join(directory, "prompt-gate"), { recursive: true });
+  const promptArgs = ["prompt-gate/run.mjs", "./prompt-gate.db", "package-prompt-gate-v1"];
+  const promptReport = JSON.parse(run(process.execPath, promptArgs));
+  assert.deepEqual(promptReport.accepted, [false, true]);
+  assert.equal(promptReport.finalTest[0].candidate.accuracy, 0.25);
+  assert.equal(promptReport.finalTest[1].candidate.accuracy, 0.875);
+  assert.deepEqual(JSON.parse(run(process.execPath, promptArgs)), promptReport);
   writeFileSync(join(directory, "consumer.ts"), `import { version, digest, type Adapter, type BasePlan } from "teob-mutara";
 import { learnerHarness } from "teob-mutara/sqlite";
 import { optimize, createOptimizer } from "teob-mutara/optimizer";
@@ -58,7 +67,7 @@ assert.deepEqual(await optimize(options), result);
 assert.equal(calls, 4);
 `);
   run(process.execPath, ["optimizer.mjs"]);
-  console.log("PASS: clean install, copied adapter, real learning loop, TypeScript exports, and package contents.");
+  console.log("PASS: clean install, copied adapters, prompt gate + final audit replay, TypeScript exports, and package contents.");
 } finally {
   rmSync(directory, { recursive: true, force: true });
 }

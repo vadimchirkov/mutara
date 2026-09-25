@@ -1,0 +1,22 @@
+{
+  "training": [
+    ["train-1", "Please cancel my order.", "cancel", ["cancel", "cancel", "cancel"]],
+    ["train-2", "End my subscription now.", "cancel", ["other", "cancel", "cancel"]],
+    ["train-3", "Stop the next shipment.", "cancel", ["other", "cancel", "cancel"]],
+    ["train-4", "I want to cancel and get a refund.", "cancel", ["cancel", "cancel", "cancel"]],
+    ["train-5", "Where is my package?", "other", ["cancel", "other", "other"]],
+    ["train-6", "Can I change the delivery address?", "other", ["other", "other", "other"]],
+    ["train-7", "How much is shipping?", "other", ["cancel", "other", "cancel"]],
+    ["train-8", "Please send an invoice.", "other", ["other", "other", "other"]]
+  ],
+  "validation": [
+    ["validation-1", "Cancel the subscription renewal.", "cancel", ["cancel", "cancel", "cancel"]],
+    ["validation-2", "I would like to stop my current membership.", "cancel", ["other", "other", "cancel"]],
+    ["validation-3", "Do not cancel my order.", "other", ["cancel", "cancel", "other"]],
+    ["validation-4", "What is your cancellation policy?", "other", ["cancel", "cancel", "other"]],
+    ["validation-5", "My cancelled order has not been refunded.", "other", ["cancel", "cancel", "other"]],
+    ["validation-6", "I need a refund for a damaged item, not cancellation.", "other", ["other", "cancel", "cancel"]],
+    ["validation-7", "Keep the subscription active.", "other", ["other", "other", "other"]],
+    ["validation-8", "Is cancellation free?", "other", ["other", "cancel", "other"]]
+  ]
+}

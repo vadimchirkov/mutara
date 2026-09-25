@@ -2,9 +2,9 @@
 import { readFileSync } from "node:fs";
 import { digest, version, validateVersion } from "teob-mutara";
 
-/** @typedef {{ threshold: number, cases: [number, boolean][] }} Input */
+/** @typedef {{ threshold: number, confidences: number[] }} Input */
 /** @type {[number, boolean][]} */
-const training = [[0.1, false], [0.3, false], [0.4, false], [0.6, true], [0.8, true], [0.95, true]];
+const training = [[0.1, false], [0.25, false], [0.4, true], [0.6, true], [0.8, true], [0.95, true]];
 /** @type {[number, boolean][]} */
 const validation = [[0.15, false], [0.35, false], [0.55, true], [0.75, true]];
 // Record code and data, not only a label such as "v1". Include model/prompt versions
@@ -13,13 +13,14 @@ const implementation = { source: readFileSync(new URL(import.meta.url), "utf8"),
 const implementationId = digest(implementation);
 export const initial = version({ threshold: 0.9 }, implementationId);
 export const plan = { initial, rounds: 3 };
+const planId = digest(plan);
 
-/** @type {import('mutara').Adapter<typeof initial, typeof plan, { trainingGain: number, validationGain: number }>} */
+/** @type {import('teob-mutara').Adapter<typeof initial, typeof plan, { trainingGain: number, validationGain: number }>} */
 export const adapter = {
   implementation,
   recovery: "repeatable", // Local, free, deterministic computation only.
   validatePlan(p) {
-    if (p.rounds > 3) throw new Error("This example has three candidates");
+    if (digest(p) !== planId) throw new Error("Example plan changed; use its pinned plan");
   },
   validateVersion(v) {
     validateVersion(v, implementationId);
@@ -30,17 +31,17 @@ export const adapter = {
   limits: (p) => ({ executions: p.rounds * 4, cost: 0 }),
   propose: (champion, history) => version({ threshold: [0.7, 0.5, 0.3][history.length] }, implementationId, champion.id),
   jobs: (champion, candidate) => [
-    { key: "baselineTraining", input: { threshold: champion.config.threshold, cases: training }, costLimit: 0 },
-    { key: "candidateTraining", input: { threshold: candidate.config.threshold, cases: training }, costLimit: 0 },
-    { key: "baselineValidation", input: { threshold: champion.config.threshold, cases: validation }, costLimit: 0 },
-    { key: "candidateValidation", input: { threshold: candidate.config.threshold, cases: validation }, costLimit: 0 },
+    { key: "baselineTraining", input: { threshold: champion.config.threshold, confidences: training.map(([x]) => x) }, costLimit: 0 },
+    { key: "candidateTraining", input: { threshold: candidate.config.threshold, confidences: training.map(([x]) => x) }, costLimit: 0 },
+    { key: "baselineValidation", input: { threshold: champion.config.threshold, confidences: validation.map(([x]) => x) }, costLimit: 0 },
+    { key: "candidateValidation", input: { threshold: candidate.config.threshold, confidences: validation.map(([x]) => x) }, costLimit: 0 },
   ],
   async execute(job) {
-    const { threshold, cases } = /** @type {Input} */ (job.input);
-    return { output: cases.map(([confidence]) => confidence >= threshold), cost: 0 };
+    const { threshold, confidences } = /** @type {Input} */ (job.input);
+    return { output: confidences.map((confidence) => confidence >= threshold), cost: 0 };
   },
   grade(job, receipt) {
-    const labels = /** @type {Input} */ (job.input).cases.map(([, expected]) => expected);
+    const labels = (job.key.endsWith("Training") ? training : validation).map(([, expected]) => expected);
     const output = receipt.output;
     if (!Array.isArray(output) || output.length !== labels.length ||
         output.some((v) => typeof v !== "boolean")) throw new Error("Invalid predictions");

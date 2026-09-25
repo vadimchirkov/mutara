@@ -24,3 +24,4 @@ examples/pong/champion.json
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
 opencode.json
+/examples/crypto-paper

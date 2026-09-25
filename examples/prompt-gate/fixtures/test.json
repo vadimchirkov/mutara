@@ -1,0 +1,12 @@
+{
+  "test": [
+    ["test-1", "Terminate my plan effective today.", "cancel", ["other", "other", "cancel"]],
+    ["test-2", "Please cancel the book order I placed yesterday.", "cancel", ["cancel", "cancel", "cancel"]],
+    ["test-3", "I changed my mind; please keep my order.", "other", ["other", "other", "other"]],
+    ["test-4", "Would cancelling affect my refund?", "other", ["cancel", "cancel", "other"]],
+    ["test-5", "Do not terminate my membership.", "other", ["cancel", "cancel", "other"]],
+    ["test-6", "Explain the cancellation charge on my bill.", "other", ["cancel", "cancel", "other"]],
+    ["test-7", "You cancelled my order by mistake; restore it.", "other", ["other", "cancel", "other"]],
+    ["test-8", "Where is the refund you promised?", "other", ["other", "cancel", "cancel"]]
+  ]
+}
