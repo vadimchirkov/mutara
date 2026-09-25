@@ -5,6 +5,7 @@ import { join } from "node:path";
 import Database from "better-sqlite3";
 import { optimize, createOptimizer, type OptimizeOptions } from "../src/optimizer.js";
 import { compositeDecision } from "../src/multi-metric.js";
+import { sequentialDecision } from "../src/decision.js";
 import { learnerHarness } from "../src/sqlite.js";
 import { sampleRandom, validateSpace } from "../src/search.js";
 
@@ -62,6 +63,15 @@ describe("declarative optimizer", () => {
     }));
     expect(result.history[0].accepted).toBe(false);
     expect(result.champion).toEqual({ x: 5 });
+  });
+
+  it.each([[1, true], [0, false]])("sequential gate stops a trial once evidence is decisive (candidate wins: %i)", async (wins, accepted) => {
+    const execute = vi.fn(async (config: Record<string, unknown>) => ({ output: { score: Number((config.x !== 5) === !!wins) }, cost: 0 }));
+    const result = await optimize(options({ execute, decision: { mode: "sequential" }, metrics: [metric], samplesPerTrial: 200, budget: { trials: 1 } }));
+    expect(result.history[0].accepted).toBe(accepted);
+    expect(result.history[0].metrics.score).toBeCloseTo(wins);
+    expect(result.executions).toBeLessThan(40);
+    expect(execute).toHaveBeenCalledTimes(result.executions);
   });
 
   it("keeps up to 100 trials in one recoverable experiment", async () => {
@@ -181,6 +191,18 @@ it("requires evidence even when all observations agree, and honors the declared 
   expect(compositeDecision(baseline, candidate, [metric], rule).accepted).toBe(true);
   expect(compositeDecision(baseline, candidate, [metric], { ...rule, comparisons: 1000 }).accepted).toBe(false);
   expect(() => compositeDecision(baseline, [{ score: 2 }, ...candidate.slice(1)], [metric], rule)).toThrow("Invalid observation");
+});
+
+it("sequential gate keeps its false-promotion rate under optional stopping", () => {
+  let seed = 1;
+  const coin = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31 < 0.5 ? 1 : -1;
+  let promoted = 0;
+  for (let i = 0; i < 200; i++) {
+    promoted += Number(sequentialDecision(Array.from({ length: 1000 }, coin), { minimumGain: 0, range: 2, alpha: 0.05, comparisons: 1 }).accepted);
+  }
+  expect(promoted).toBeLessThanOrEqual(16);
+  const clear = sequentialDecision(Array(100).fill(1), { minimumGain: 0, range: 2, alpha: 0.05, comparisons: 1 });
+  expect([clear.accepted, clear.final, clear.reason]).toEqual([true, true, expect.stringContaining("n=9")]);
 });
 
 it("respects the declared weights and directions when trading quality against cost", () => {

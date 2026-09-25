@@ -14,7 +14,7 @@ export function learnerHarness<V extends Identity, P extends BasePlan<V>, E>(pat
       if (batch.records.some((r) => ["experiment_finished", "experiment_failed", "experiment_blocked"].includes(r.manifest))) {
         completed.add(batch.entityId); waiters.get(batch.entityId)?.forEach((resolve) => resolve());
       }
-      if (batch.records.some((r) => r.manifest === "execution_received")) completed.delete(batch.entityId);
+      if (batch.records.some((r) => ["execution_received", "execution_retried"].includes(r.manifest))) completed.delete(batch.entityId);
     },
   }, [learner]);
   const ready = runtime.start();

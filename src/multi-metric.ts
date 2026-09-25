@@ -1,4 +1,4 @@
-import { boundedDecision } from "./decision.js";
+import { boundedDecision, sequentialDecision } from "./decision.js";
 
 export interface Metric {
   name: string;
@@ -9,6 +9,8 @@ export interface Metric {
 }
 export type DecisionRule =
   | { mode: "bounded"; minimumGain?: number; alpha?: number }
+  /** Anytime-valid; the optimizer stops a trial as soon as the evidence is decisive. */
+  | { mode: "sequential"; minimumGain?: number; alpha?: number }
   | { mode: "heuristic"; minimumGain?: number };
 
 export function validateMetrics(metrics: Metric[]) {
@@ -33,7 +35,7 @@ export function compositeDecision(
   candidate: Record<string, number>[],
   metrics: Metric[],
   options: DecisionRule & { comparisons: number },
-): { accepted: boolean; reason: string } {
+): { accepted: boolean; reason: string; final?: boolean } {
   if (baseline.length !== candidate.length || !baseline.length) throw new Error("Sample counts must match and be non-empty");
   validateMetrics(metrics);
   const minimumGain = options.minimumGain ?? 0;
@@ -54,7 +56,8 @@ export function compositeDecision(
     if (!Number.isFinite(mean)) throw new Error("Composite mean overflow");
     return { accepted: mean > minimumGain, reason: `heuristic mean=${mean.toFixed(4)}, n=${composites.length}` };
   }
-  if (options.mode !== "bounded" || metrics.some((m) => !m.bounds)) throw new Error("Bounded decisions require fixed metric bounds");
+  if (!["bounded", "sequential"].includes(options.mode) || metrics.some((m) => !m.bounds)) throw new Error("Bounded decisions require fixed metric bounds");
   const range = 2 * metrics.reduce((sum, m) => sum + m.weight * (m.bounds!.max - m.bounds!.min), 0);
-  return boundedDecision(composites, { minimumGain, comparisons: options.comparisons, range, alpha: options.alpha ?? 0.05 });
+  const test = options.mode === "sequential" ? sequentialDecision : boundedDecision;
+  return test(composites, { minimumGain, comparisons: options.comparisons, range, alpha: options.alpha ?? 0.05 });
 }

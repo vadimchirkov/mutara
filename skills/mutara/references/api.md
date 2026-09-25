@@ -10,7 +10,7 @@ built-in `Version<Config>` containing `id`, `parentId`, `implementationId`, `con
 ```ts
 import {
   createLearner, version, validateVersion, digest, canonical,
-  boundedDecision, type Adapter, type BasePlan, type Version,
+  boundedDecision, sequentialDecision, type Adapter, type BasePlan, type Version,
 } from "teob-mutara";
 import { learnerHarness } from "teob-mutara/sqlite";
 ```
@@ -38,6 +38,7 @@ Date, Map and functions are not persistent values; convert them explicitly.
 | `execute(job, plan)` | Promise of `{ output, cost }`. Enforce the reservation in the executor. |
 | `grade(job, receipt, plan)` | Pure local `{ metrics: Record<string, number>, data }`, or `null` to await external feedback. Metrics must be finite. |
 | `assess(runs, plan)` | `{ evaluation, decision: { accepted, reason } }`. Each run contains job, receipt and observation. Decides accept/reject ONLY — the new champion on accept is always the `propose` candidate, never anything `assess` builds. |
+| `early?(runs, plan)` | Optional, pure. Receives the observed prefix before the next job is requested; `true` calls `assess` on that prefix and drops the remaining jobs. Only for decision rules valid under optional stopping. |
 
 Callbacks receive copies of persisted values. Closures and external application
 state remain the host's responsibility. The engine executes jobs sequentially.
@@ -71,7 +72,7 @@ useful for a smoke test, but cannot recover across processes.
 - `state(id)` returns a copy and activates recovery for that entity if necessary.
 - `wait(id, timeoutMs = 300000)` waits for `finished`; rejects on `failed`,
   `blocked` or timeout. Timeout does **not** cancel the executor or roll back effects.
-- `send(id, command)` delivers `received`, `observed`, `rollback`, etc.
+- `send(id, command)` delivers `received`, `observed`, `retry`, `rollback`, etc.
 - `close()` shuts down the runtime. Finish or reconcile external work first.
 
 State includes `champion`, `plan`, `trials`, `pending.runs`, `executions`, `spent`,

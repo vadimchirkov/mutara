@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { coreId, exceedsCost, type Adapter } from "./engine.js";
+import { coreId, exceedsCost, type Adapter, type RunRecord } from "./engine.js";
 import { canonical, version, digest, validateVersion, type Version } from "./version.js";
 import { learnerHarness } from "./sqlite.js";
 import { randomPropose, initialConfig, validateSpace, type Space } from "./search.js";
@@ -61,6 +61,11 @@ const extension = import.meta.url.endsWith(".ts") ? ".ts" : ".js";
 const optimizerImplementation = Object.fromEntries(["optimizer", "search", "multi-metric"].map((name) =>
   [name + extension, readFileSync(new URL(name + extension, import.meta.url), "utf8")]));
 
+const paired = (runs: RunRecord[]) => ({
+  baseline: runs.filter((r) => r.job.key.startsWith("baseline:")).map((r) => r.observation!.metrics),
+  candidate: runs.filter((r) => r.job.key.startsWith("candidate:")).map((r) => r.observation!.metrics),
+});
+
 /** Use the same adapter in a host TEOB runtime, or with learnerHarness for reconciliation. */
 export function createOptimizer(opts: OptimizerOptions) {
   if (typeof opts.execute !== "function") throw new Error("An executor is required");
@@ -111,10 +116,14 @@ export function createOptimizer(opts: OptimizerOptions) {
       return { metrics, data: null };
     },
     assess(runs, p) {
-      const baseline = runs.filter((r) => r.job.key.startsWith("baseline:")).map((r) => r.observation!.metrics);
-      const candidate = runs.filter((r) => r.job.key.startsWith("candidate:")).map((r) => r.observation!.metrics);
-      return { evaluation: { baseline, candidate },
-        decision: compositeDecision(baseline, candidate, p.metrics, { ...p.decision, comparisons: p.rounds }) };
+      const { baseline, candidate } = paired(runs);
+      const { accepted, reason } = compositeDecision(baseline, candidate, p.metrics, { ...p.decision, comparisons: p.rounds });
+      return { evaluation: { baseline, candidate }, decision: { accepted, reason } };
+    },
+    early(runs, p) {
+      const { baseline, candidate } = paired(runs);
+      return p.decision.mode === "sequential" && baseline.length === candidate.length &&
+        compositeDecision(baseline, candidate, p.metrics, { ...p.decision, comparisons: p.rounds }).final === true;
     },
   };
   return { adapter, plan };
@@ -133,7 +142,7 @@ export async function optimize(opts: OptimizeOptions): Promise<OptimizerResult> 
     const history = state.trials.map((trial) => ({
       config: trial.candidate.config,
       metrics: Object.fromEntries(plan.metrics.map((m) => [m.name,
-        trial.evaluation.candidate.reduce((sum, s) => sum + s[m.name] / plan.samplesPerTrial, 0)])),
+        trial.evaluation.candidate.reduce((sum, s) => sum + s[m.name] / trial.evaluation.candidate.length, 0)])),
       accepted: trial.accepted, reason: trial.reason,
     }));
     return { id: opts.id, champion: state.champion!.config, history, totalTrials: state.trials.length,

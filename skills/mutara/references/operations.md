@@ -40,6 +40,14 @@ await learner.send(id, {
 });
 ```
 
+With `repeatable` or `idempotent` recovery, a blocked job can instead be run again
+once the cause is fixed. It keeps its job ID and is not counted as a second
+logical execution. `manual` recovery refuses it:
+
+```ts
+await learner.send(id, { tag: "retry", jobId: state.pending.runs.find((r) => !r.receipt).job.id });
+```
+
 The receipt must match the current requested job and its reservation. An unknown
 outcome may need human/provider investigation. A run already marked `failed` is
 not automatically restarted by sending `advance`; correct the cause and start a

@@ -47,6 +47,9 @@ export interface Adapter<V extends Identity, P extends BasePlan<V>, E> {
   /** Pure local grading. null means wait for separately delivered feedback. */
   grade(job: Job, receipt: Receipt, plan: P): Observation | null;
   assess(runs: RunRecord[], plan: P): { evaluation: E; decision: Decision };
+  /** Pure. Called with the observed prefix before requesting the next job; true assesses
+   * that prefix now and drops the remaining jobs. The decision rule must allow optional stopping. */
+  early?(runs: RunRecord[], plan: P): boolean;
 }
 export type Command<_V, P, _E> =
   | { tag: "start"; plan: P }
@@ -54,12 +57,15 @@ export type Command<_V, P, _E> =
   | { tag: "received"; jobId: string; receipt: Receipt }
   | { tag: "observed"; jobId: string; observation: Observation }
   | { tag: "execution_failed"; jobId: string; message: string }
+  /** Re-run a blocked job whose outcome is unknown; refused in manual recovery. */
+  | { tag: "retry"; jobId: string }
   | { tag: "rollback"; versionId: string; reason: string }
   | { tag: "get_state" };
 export type Event<V, P, E> =
   | { tag: "experiment_started"; plan: P; implementation: unknown; coreId: string; adapterId: string }
   | { tag: "candidate_proposed"; round: number; candidate: V; jobs: Job[] }
   | { tag: "execution_requested"; jobId: string }
+  | { tag: "execution_retried"; jobId: string }
   | { tag: "execution_received"; jobId: string; receipt: Receipt }
   | { tag: "observation_recorded"; jobId: string; observation: Observation }
   | { tag: "candidate_decided"; trial: Trial<V, E> }
@@ -69,7 +75,7 @@ export type Event<V, P, E> =
   | { tag: "strategy_reverted"; version: V; reason: string };
 export type Reply<V, P, E> = { tag: "state"; state: State<V, P, E> } | { tag: "error"; message: string };
 export interface LearnerOptions { category?: string }
-const tags = ["experiment_started", "candidate_proposed", "execution_requested", "execution_received", "observation_recorded",
+const tags = ["experiment_started", "candidate_proposed", "execution_requested", "execution_retried", "execution_received", "observation_recorded",
   "candidate_decided", "experiment_finished", "experiment_failed", "experiment_blocked", "strategy_reverted"] as const;
 const current = <V, P, E>(s: State<V, P, E>) => s.pending?.runs.find((r) => !r.observation);
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
@@ -145,8 +151,9 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
               return persist({ tag: "candidate_proposed", round: s.trials.length, candidate, jobs });
             }
             const record = current(s);
-            if (!record) {
-              const { evaluation, decision } = adapter.assess(structuredClone(s.pending.runs), structuredClone(s.plan!));
+            const observed = s.pending.runs.filter((r) => r.observation);
+            if (!record || (!record.requested && observed.length && adapter.early?.(structuredClone(observed), structuredClone(s.plan!)) === true)) {
+              const { evaluation, decision } = adapter.assess(structuredClone(observed), structuredClone(s.plan!));
               canonical({ evaluation, decision });
               if (typeof decision.accepted !== "boolean" || typeof decision.reason !== "string") throw new Error("Invalid decision");
               await advance();
@@ -186,6 +193,13 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
         case "execution_failed":
           if (s.status !== "running" || current(s)?.job.id !== command.jobId || current(s)?.receipt) return done();
           return persist({ tag: "experiment_blocked", message: command.message });
+        case "retry": {
+          const record = current(s);
+          if (s.status !== "blocked" || record?.job.id !== command.jobId || !record.requested || record.receipt) return reply({ tag: "error", message: "No failed job to retry" });
+          if (adapter.recovery === "manual") return reply({ tag: "error", message: "Retry is unsafe in manual recovery; reconcile the receipt" });
+          await ctx.tellSelf({ tag: "advance", resume: true });
+          return persist({ tag: "execution_retried", jobId: command.jobId });
+        }
         case "rollback": {
           if (s.status !== "finished" || !command.reason.trim()) return reply({ tag: "error", message: "Rollback requires a finished experiment and a reason" });
           const version = [s.plan!.initial, ...s.trials.filter((t) => t.accepted).map((t) => t.candidate)].find((v) => v.id === command.versionId);
@@ -201,6 +215,10 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
         case "experiment_started": return { ...s, status: "running", plan: e.plan, champion: e.plan.initial, coreId: e.coreId, adapterId: e.adapterId };
         case "candidate_proposed": return { ...s, pending: { round: e.round, candidate: e.candidate, runs: e.jobs.map((job) => ({ job, requested: false })) } };
         case "execution_requested": return { ...s, executions: s.executions + 1, pending: update(e.jobId, { requested: true }) };
+        case "execution_retried": {
+          const { error: _, ...rest } = s;
+          return { ...rest, status: "running" };
+        }
         case "execution_received": {
           const { error: _, ...rest } = s;
           return { ...rest, status: "running", spent: s.spent + e.receipt.cost, pending: update(e.jobId, { receipt: e.receipt }) };

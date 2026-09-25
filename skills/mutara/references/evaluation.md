@@ -20,8 +20,8 @@ set can overfit. Reusing it is a heuristic, not an independent statistical test.
 
 ## Acceptance options
 
-The declarative optimizer supplies two rules: `bounded` (default) and explicit
-`heuristic`. Its weighted objective combines raw metric differences, without
+The declarative optimizer supplies three rules: `bounded` (default),
+`sequential` (anytime-valid, stops early) and explicit `heuristic`. Its weighted objective combines raw metric differences, without
 normalization or hard constraints. Configure units/weights before evaluation;
 use a custom adapter for mandatory quality gates. See [optimizer.md](optimizer.md)
 for case indices, metric bounds and the comparison budget.
@@ -43,6 +43,11 @@ Each finite difference must be within `[-range/2, range/2]`; for accuracy differ
 in `[-1, 1]`, use `range: 2`. Cases must be independent. Predeclare the number of
 comparisons. Adaptively generated candidates need fresh independent evaluation
 cases; Bonferroni alone does not repair adaptive reuse of the same dataset.
+
+`sequentialDecision` takes the same arguments and data caveats. It bets on the
+differences in order (Waudby-Smith & Ramdas) and accepts once wealth reaches
+`comparisons / alpha`, which stays valid when you stop as soon as it returns
+`final: true`. A host adapter can stop early through `Adapter.early`.
 This bound can be conservative and reject plausible gains on small datasets.
 
 ## Evidence to retain

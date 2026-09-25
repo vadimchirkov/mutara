@@ -91,6 +91,34 @@ describe("generic learning lifecycle", () => {
     } finally { await h.close(); }
   });
 
+  it("retries a failed repeatable job without counting a second logical execution", async () => {
+    let calls = 0;
+    const execute = vi.fn(async (job: { input: unknown }) => {
+      if (++calls === 1) throw new Error("transient network error");
+      return { output: job.input, cost: 1 };
+    });
+    const h = learnerHarness(path("retry"), adapter({ execute }));
+    try {
+      await h.start("score", plan());
+      await expect(h.wait("score")).rejects.toThrow("transient");
+      await expect(h.send("score", { tag: "retry", jobId: "learning/score/0/1" })).rejects.toThrow("No failed job");
+      await h.send("score", { tag: "retry", jobId: "learning/score/0/0" });
+      const final = await h.wait("score");
+      expect(final.champion?.config.value).toBe(2);
+      expect([final.executions, final.spent, execute.mock.calls.length]).toEqual([2, 2, 3]);
+    } finally { await h.close(); }
+  });
+
+  it("refuses retry when a repeated effect is unsafe", async () => {
+    const h = learnerHarness(path("retry-manual"), adapter({ recovery: "manual", execute: async () => { throw new Error("timeout"); } }));
+    try {
+      await h.start("score", plan());
+      await expect(h.wait("score")).rejects.toThrow("timeout");
+      await expect(h.send("score", { tag: "retry", jobId: "learning/score/0/0" })).rejects.toThrow("manual");
+      expect((await h.state("score")).status).toBe("blocked");
+    } finally { await h.close(); }
+  });
+
   it("recovers saved receipts without re-executing jobs and accepts delayed feedback", async () => {
     const db = path("feedback");
     const execute = vi.fn(adapter().execute);

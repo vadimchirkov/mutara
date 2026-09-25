@@ -46,7 +46,7 @@ Import `OptimizerOptions`, `OptimizeOptions`, `OptimizerResult`, `ExecutionConte
 | `metrics` | Nonempty list of unique names, `higher`/`lower` direction and positive finite `weight`. |
 | `implementation` | Required finite JSON pinning executor and evaluation artifacts. |
 | `execute(config, context)` | Async function returning `{ output: Record<string, number>, cost: number }`. |
-| `decision` | Default `{ mode: "bounded" }`. Both modes allow `minimumGain` (default 0); bounded allows `alpha` (default 0.05). |
+| `decision` | Default `{ mode: "bounded" }`. All modes allow `minimumGain` (default 0); `bounded` and `sequential` allow `alpha` (default 0.05). |
 | `samplesPerTrial` | Positive integer paired cases per trial; default 1. |
 | `budget` | Default `{ trials: 50, cost: 0 }`; trials must be 1–100. Cost units belong to the host. |
 | `costLimit` | Nonnegative per-execution reservation; default 0. |
@@ -98,6 +98,13 @@ only updates accounting; to optimize cost, also return it as an output metric.
   Hoeffding gate with `range = 2 * sum(weight * (max - min))` and the full declared
   trial count as the comparison budget. A single sample cannot pass at default
   alpha, even with maximal gain. Choose sample counts before observing results.
+- `sequential`: same bounds, range and comparison budget, but an anytime-valid
+  betting test. It checks after every complete baseline/candidate pair and ends
+  the trial as soon as it promotes, or as soon as futility evidence rejects;
+  unrun jobs are dropped and not charged. `samplesPerTrial` becomes a cap. Far
+  fewer pairs than `bounded` when paired differences have low variance (a +0.1
+  accuracy gain with 20% disagreement: ~250 pairs versus ~2000). The futility
+  stop can reject a truly better candidate with probability at most 5%.
 
 See [evaluation.md](evaluation.md) for the assumptions and final evaluation.
 
