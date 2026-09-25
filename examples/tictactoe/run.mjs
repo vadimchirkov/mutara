@@ -1,24 +1,24 @@
 // Starter: tune MCTS params for tic-tac-toe via the declarative optimizer.
 // No core changes. Uses only public exports: mutara/optimizer.
-// Wiring demo (heuristic), not proof of strength — see README.
+// Sequential gate: promotions carry a confidence claim; held-out below still reports.
 // Shared logic lives in tuning.mjs (importable by the smoke test).
 import { optimize } from "teob-mutara/optimizer";
 import { playGame, execute, implementation, space, BASELINE } from "./tuning.mjs";
 
-const id = process.argv[2] ?? "ttt-mcts-v3";
+const id = process.argv[2] ?? "ttt-seq-v1";
 const storage = process.argv[3] ?? "./examples/tictactoe/learning.db";
 
 const result = await optimize({
   id,
   storage,
   space,
-  metrics: [{ name: "score", direction: "higher", weight: 1 }],
+  metrics: [{ name: "score", direction: "higher", weight: 1, bounds: { min: 0, max: 1 } }],
   implementation: { execute: execute.toString(), ...implementation },
   execute,
   recovery: "repeatable", // safe local sim, no paid/visible effects
-  decision: { mode: "heuristic" }, // wiring + selection; final word is the held-out below
+  decision: { mode: "sequential" }, // anytime-valid gate; stops each trial once evidence is decisive
   budget: { trials: 15 },
-  samplesPerTrial: 8, // 15 trials * 8 cases * 2 (baseline+candidate) = 240 games
+  samplesPerTrial: 200, // cap per trial; sequential stops most trials far earlier
 });
 
 console.log(JSON.stringify({ champion: result.champion, trials: result.totalTrials, executions: result.executions }, null, 2));

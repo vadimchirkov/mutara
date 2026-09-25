@@ -10,16 +10,17 @@ Proves plumbing, not strength.
   not shift the opponent's dice. Fresh indices every round, shared by baseline
   and candidate. No modulo recycling.
 * `recovery: repeatable` — pure local sim, cost 0.
-* `decision: heuristic` — selection only; the final word is the held-out
-  W/D/L report. For a claim switch to `bounded` with
-  `bounds: { min: 0, max: 1 }`, `samplesPerTrial >= 12` minimum and fresh cases
-  per trial (penalty at 8 samples still exceeds most realistic gains).
+* `decision: sequential` with `bounds: { min: 0, max: 1 }` — anytime-valid gate;
+  `samplesPerTrial: 200` is a cap. One run (`ttt-seq-v1`, 5.7 s): 1 promotion
+  stopped at 134 pairs, 1 clearly worse candidate rejected at 69, the other 13
+  near-ties ran to the cap; 5606 of 6000 games. Held-out: champion 0.633 vs
+  baseline 0.570. The earlier heuristic gate on 8 samples made no claim.
 
 Run (new ID per experiment, keep old DBs):
 
 ```bash
 pnpm run build
-node examples/tictactoe/run.mjs ttt-mcts-v3 ./examples/tictactoe/learning.db
+node examples/tictactoe/run.mjs ttt-seq-v1 ./examples/tictactoe/learning.db
 ```
 
 Shared logic (`playGame`, `execute`, `space`) lives in `tuning.mjs` so the
