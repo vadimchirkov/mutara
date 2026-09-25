@@ -1,0 +1,14 @@
+[
+  { "id": "req-001", "input": "Please cancel my order.", "label": "cancel", "championOutput": "cancel" },
+  { "id": "req-002", "input": "Where is my package?", "label": "other",  "championOutput": "cancel" },
+  { "id": "req-003", "input": "End my subscription now.", "label": "cancel", "championOutput": "other" },
+  { "id": "req-004", "input": "Can I change delivery address?", "label": "other",  "championOutput": "other" },
+  { "id": "req-005", "input": "Stop the next shipment.", "label": "cancel", "championOutput": "cancel" },
+  { "id": "req-006", "input": "How much is shipping?", "label": "other",  "championOutput": "cancel" },
+  { "id": "req-007", "input": "Cancel the subscription renewal.", "label": "cancel", "championOutput": "cancel" },
+  { "id": "req-008", "input": "Do not cancel my order.", "label": "other",  "championOutput": "cancel" },
+  { "id": "req-009", "input": "What is your cancellation policy?", "label": "other",  "championOutput": "cancel" },
+  { "id": "req-010", "input": "I need a refund, not cancellation.", "label": "other",  "championOutput": "other" },
+  { "id": "req-011", "input": "Please send an invoice.", "label": "other",  "championOutput": "other" },
+  { "id": "req-012", "input": "I want to cancel and get a refund.", "label": "cancel", "championOutput": "cancel" }
+]
