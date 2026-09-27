@@ -246,10 +246,27 @@ describe("reflective GEPA-style optimization", () => {
           { id: "final-2", input: { topic: "other-final" }, expected: "missed" },
         ],
       });
-      expect(result.finalAudit).toMatchObject({ cases: 2 });
+      expect(result.finalAudit).toMatchObject({ cases: 2, test: null });
       expect(result.finalAudit!.championMean).toBe(1);
       expect(JSON.stringify(seenInputs)).not.toContain("final-");
       expect(JSON.stringify(result)).not.toContain("other-final");
+    });
+  });
+
+  it("tests the final gain on held-out cases, and only when the evidence suffices", async () => {
+    await withDir(async (dir) => {
+      const storage = join(dir, "learning.db");
+      const finalCases = (n: number) => Array.from({ length: n }, (_, i) =>
+        ({ id: `final-${i}`, input: { topic: i % 2 ? "alpha" : "beta" }, expected: "handled" }));
+      const opts = (id: string, n: number) => ({ ...baseOptions(storage, { id }), rounds: 2, finalCases: finalCases(n),
+        finalTest: { scoreRange: 1 } });
+      const many = await optimizeReflective(opts("many", 40));
+      expect(many.finalAudit).toMatchObject({ baselineMean: 0, championMean: 1 });
+      expect(many.finalAudit!.test!.accepted).toBe(true);
+      const few = await optimizeReflective(opts("few", 2));
+      expect(few.finalAudit!.test!.accepted).toBe(false);
+      await expect(optimizeReflective({ ...baseOptions(storage, { id: "no-final" }), finalTest: { scoreRange: 1 } }))
+        .rejects.toThrow("finalTest needs finalCases");
     });
   });
 

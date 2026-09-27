@@ -46,7 +46,8 @@ console.log(result.champion, result.history.map((h) => h.accepted));
 ```
 
 This is a wiring pattern with a scripted stub in
-`examples/reflective-demo.mjs`; that demo proves plumbing, not a gain.
+`examples/reflective-demo.mjs`; that demo proves plumbing, not a gain. For a
+measurement with a real model see `examples/reflective-bench/`.
 
 ## Rounds and entities
 
@@ -122,6 +123,14 @@ result.champion; // { system: "...", format: "..." }
   the final champion on held-out cases (see [evaluation.md](evaluation.md)) and
   do not present journal growth as improvement.
 
+## Final test
+
+With `finalCases`, set `finalTest: { scoreRange, minimumGain = 0, alpha = 0.05 }`
+to add `finalAudit.test`: a paired anytime-valid betting test (`decision.ts`) of
+champion vs. initial prompt. It is valid there, unlike during selection, because
+final cases are fresh and there is one comparison. It accepts only if the gain is
+significant and violations did not grow. `scoreRange` is max − min possible score.
+
 ## Parents, frontier and budgets
 
 - `parentStrategy: "champion"` (default) mutates the current champion;
@@ -165,6 +174,7 @@ result.champion; // { system: "...", format: "..." }
 | `passScore` | Train cases scoring at or above it count as solved; default 1. Set it for non-[0, 1] scores. |
 | `maxPromptChars` | 1–64000 per component; default 8000. |
 | `maxMerges` | 0–100 merge attempts; default 0. |
+| `finalTest` | Optional `{ scoreRange, minimumGain?, alpha? }`; needs `finalCases`. |
 | `costLimit` / `reflectionCostLimit` | Nonnegative reservations; default 0. |
 | `budget.cost` | Total cost budget; default 0. |
 | `recovery` | Default `manual`. |

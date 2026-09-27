@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { canonical, digest, version, validateVersion, type Version } from "./version.js";
 import { coreId, exceedsCost, type Adapter, type BasePlan, type State } from "./engine.js";
 import { learnerHarness } from "./sqlite.js";
+import { sequentialDecision } from "./decision.js";
 
 // GEPA-style reflective optimization as a journaled host loop over the core
 // learner. The core engine is intentionally untouched: `propose` stays
@@ -96,6 +97,12 @@ export interface ReflectiveOptions<P extends PromptInput = string> {
   maxMerges?: number;
   /** Held-out cases: never shown to the reflector, report-only audit at the end. */
   finalCases?: FinalCase[];
+  /**
+   * Paired test of champion vs initial prompt on `finalCases` (the anytime-valid
+   * betting test from `decision.ts`). Valid because final cases are fresh and never
+   * tuned on, and there is one comparison. `scoreRange` is max − min possible score.
+   */
+  finalTest?: { scoreRange: number; minimumGain?: number; alpha?: number };
 }
 
 export interface SideOutcome { caseId: string; score: number; violation: number; actual: unknown; trace: string | null; feedback: unknown }
@@ -143,7 +150,15 @@ export interface ReflectiveResult<P extends PromptInput = string> {
   spent: number;
   reflectionCalls: number;
   merges: number;
-  finalAudit: { baselineMean: number; championMean: number; baselineViolations: number; championViolations: number; cases: number } | null;
+  finalAudit: {
+    baselineMean: number;
+    championMean: number;
+    baselineViolations: number;
+    championViolations: number;
+    cases: number;
+    /** Present when `finalTest` is set: accepted only if the gain is significant and violations did not grow. */
+    test: { accepted: boolean; reason: string } | null;
+  } | null;
 }
 
 type PromptVersion = Version<{ prompts: PromptSet }>;
@@ -235,7 +250,7 @@ function summarize(scores: CaseScore[], cases: ReflectiveCase[]): StageSummary {
   const split = (name: "train" | "validation"): SplitScore | null => {
     const ids = new Set(cases.filter((c) => c.split === name).map((c) => c.id));
     const s = scores.filter((o) => ids.has(o.caseId));
-    return s.length ? { mean: s.reduce((n, o) => n + o.score / s.length, 0), violations: s.reduce((n, o) => n + o.violation, 0) } : null;
+    return s.length ? { mean: s.reduce((n, o) => n + o.score, 0) / s.length, violations: s.reduce((n, o) => n + o.violation, 0) } : null;
   };
   return { train: split("train"), validation: split("validation") };
 }
@@ -329,6 +344,12 @@ function validateOptions<P extends PromptInput>(opts: ReflectiveOptions<P>) {
   if (!Number.isSafeInteger(seed)) throw new Error("Invalid seed");
   if (!Number.isSafeInteger(maxRetries) || maxRetries < 0 || maxRetries > 10) throw new Error("maxRetries must be between 0 and 10");
   if (!Number.isSafeInteger(maxMerges) || maxMerges < 0 || maxMerges > 100) throw new Error("maxMerges must be between 0 and 100");
+  const finalTest = opts.finalTest === undefined ? null
+    : { scoreRange: opts.finalTest.scoreRange, minimumGain: opts.finalTest.minimumGain ?? 0, alpha: opts.finalTest.alpha ?? 0.05 };
+  if (finalTest && (!opts.finalCases || !Number.isFinite(finalTest.scoreRange) || finalTest.scoreRange <= 0 ||
+      !Number.isFinite(finalTest.minimumGain) || finalTest.minimumGain < 0 || !(finalTest.alpha > 0 && finalTest.alpha < 1))) {
+    throw new Error("finalTest needs finalCases, a positive scoreRange, minimumGain >= 0 and alpha in (0, 1)");
+  }
   const recovery = opts.recovery ?? "manual";
   if (!["repeatable", "idempotent", "manual"].includes(recovery)) throw new Error("Invalid recovery mode");
   const parentStrategy = opts.parentStrategy ?? "champion";
@@ -355,7 +376,7 @@ function validateOptions<P extends PromptInput>(opts: ReflectiveOptions<P>) {
     throw new Error("Budget cannot reserve one round (seed evaluation + reflection + candidate jobs)");
   }
   return { rounds, maxFailures, passScore, maxPromptChars, costLimit, reflectionCostLimit, budgetCost, seed, maxRetries, maxMerges,
-    recovery, parentStrategy };
+    recovery, parentStrategy, finalTest };
 }
 
 function adapterIdOf(adapter: { implementation: unknown; recovery: string }): string {
@@ -574,7 +595,7 @@ async function labelled<T>(label: string, work: () => Promise<T>): Promise<T> {
 /** Reflective GEPA-style optimization with journaled proposals, minibatch screening, merges and gated promotion. */
 export async function optimizeReflective<P extends PromptInput = string>(opts: ReflectiveOptions<P>): Promise<ReflectiveResult<P>> {
   const { rounds, maxFailures, passScore, maxPromptChars, costLimit, reflectionCostLimit, budgetCost,
-    seed, maxRetries, maxMerges, recovery, parentStrategy } = validateOptions(opts);
+    seed, maxRetries, maxMerges, recovery, parentStrategy, finalTest } = validateOptions(opts);
   const single = typeof opts.initialPrompt === "string";
   const initialSet: PromptSet = single ? { prompt: opts.initialPrompt as string } : { ...(opts.initialPrompt as PromptSet) };
   const components = Object.keys(initialSet).sort();
@@ -795,10 +816,20 @@ export async function optimizeReflective<P extends PromptInput = string>(opts: R
       const audit = await labelled("Final audit", () => evaluate(`${opts.id}/final-test`, {
         initial: initialVersion, stage: "audit", candidatePrompts: sets.get(champion)!, cases: auditCases,
         runs: { baseline: ids, candidate: ids }, known: { baseline: [], candidate: [] } }));
-      const { baseline, candidate } = audit.evaluation;
+      const { baseline, candidate, executed } = audit.evaluation;
+      let test: { accepted: boolean; reason: string } | null = null;
+      if (finalTest) {
+        const before = new Map(executed.baseline.map((o) => [o.caseId, o.score]));
+        const differences = executed.candidate.map((o) => o.score - before.get(o.caseId)!);
+        if (differences.some((d) => Math.abs(d) > finalTest.scoreRange)) throw new Error("Final scores exceed finalTest.scoreRange");
+        const decision = sequentialDecision(differences, { minimumGain: finalTest.minimumGain, range: 2 * finalTest.scoreRange,
+          alpha: finalTest.alpha, comparisons: 1 });
+        const safe = candidate.validation!.violations <= baseline.validation!.violations;
+        test = { accepted: decision.accepted && safe, reason: `${decision.reason}${safe ? "" : "; violations increased"}` };
+      }
       finalAudit = { baselineMean: baseline.validation!.mean, championMean: candidate.validation!.mean,
         baselineViolations: baseline.validation!.violations, championViolations: candidate.validation!.violations,
-        cases: opts.finalCases.length };
+        cases: opts.finalCases.length, test };
     }
   }
 
