@@ -68,12 +68,16 @@ Create the parent directory before using a nested database path. `:memory:` is
 useful for a smoke test, but cannot recover across processes.
 
 - `start(id, plan)` rejects starting the same persisted experiment twice.
-- `startOrResume(id, plan)` starts from `idle`, otherwise returns the saved
-  state. Same mismatch semantics as the manual pattern: a different plan or
-  adapter fails at `wait`, not here.
+- `startOrResume(id, plan, timeoutMs = 300000)` starts from `idle`, otherwise
+  returns the saved state. Same mismatch semantics as the manual pattern: a
+  different plan or adapter fails at `wait`, not here.
 - `state(id)` returns a copy and activates recovery for that entity if necessary.
+  A job's `execute` runs inside the entity's turn, so `state`/`send` wait behind a
+  job in flight, up to `askTimeoutMs` (harness option, default 1 hour).
 - `wait(id, timeoutMs = 300000)` waits for `finished`; rejects on `failed`,
-  `blocked` or timeout. Timeout does **not** cancel the executor or roll back effects.
+  `blocked` or inactivity. `timeoutMs` restarts on every journal write, so it
+  bounds the slowest single job, not the whole experiment. Timeout does **not**
+  cancel the executor or roll back effects; bound hung calls inside `execute`.
 - `send(id, command)` delivers `received`, `observed`, `retry`, `rollback`, etc.
 - `close()` shuts down the runtime. Finish or reconcile external work first.
 

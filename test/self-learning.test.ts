@@ -82,6 +82,29 @@ describe("generic learning lifecycle", () => {
     } finally { await h.close(); }
   });
 
+  it("waits through slow jobs after startOrResume, bounding inactivity rather than total time", async () => {
+    // startOrResume's state read lands behind the first job; wait must not ask-timeout on it,
+    // and a campaign longer than the wait timeout succeeds while every job makes progress.
+    const execute = async (job: { input: unknown }) => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return { output: job.input, cost: 1 };
+    };
+    const limits = { rounds: 4, executions: 4, budget: 4 };
+    const h = learnerHarness(path("slow-resume"), adapter({ execute }), { askTimeoutMs: 50 });
+    try {
+      await h.startOrResume("score", plan(limits));
+      expect((await h.wait("score", 400)).champion?.config.value).toBe(4);
+    } finally { await h.close(); }
+
+    const stalled = learnerHarness(path("stalled"), adapter({
+      execute: async (job) => { await new Promise((resolve) => setTimeout(resolve, 400)); return { output: job.input, cost: 1 }; },
+    })); // default ask timeout (1 h): inactivity, not the ask, must end the wait
+    try {
+      await stalled.startOrResume("score", plan());
+      await expect(stalled.wait("score", 150)).rejects.toThrow("no progress");
+    } finally { await stalled.close(); }
+  });
+
   it.each([{ budget: 1 }, { executions: 1 }])("stops before exceeding reservations: %j", async (limits) => {
     const execute = vi.fn(adapter().execute);
     const h = learnerHarness(path(`budget-${Object.keys(limits)[0]}`), adapter({ execute }));
