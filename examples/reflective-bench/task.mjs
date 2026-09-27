@@ -64,7 +64,8 @@ const TEMPLATES = [
 const REFUND = (a, v, d) => `Refund from ${v} of ${a} received ${d}.`;
 
 /** One case: `input.text` for the model, `expected` in the hidden conventions. */
-export function makeCase(seed) {
+export function makeCase(seed, level = "easy") {
+  if (level === "hard") return makeHardCase(seed);
   const r = rng(seed);
   const pick = (n) => Math.floor(r() * n);
   const [name, suffix] = VENDORS[pick(VENDORS.length)];
@@ -80,13 +81,67 @@ export function makeCase(seed) {
   };
 }
 
-/** 30 train, 30 validation, 60 final cases by default; disjoint seeds per split. */
-export function dataset({ train = 30, validation = 30, final = 60 } = {}) {
+// Hard level adds business rules on top of the easy conventions:
+// - amount is the principal: a fee "incl." in the total is subtracted, a fee "plus" is ignored;
+// - "1.2k" means 1200;
+// - chargebacks, reversals and credits back are refunds (negative);
+// - the vendor is the merchant, never the payment intermediary (PayPal, Stripe, Wise);
+// - numeric dates are month/day for USD and day/month otherwise.
+const INTERMEDIARIES = ["PayPal", "Stripe", "Wise"];
+const HARD_REFUNDS = [
+  (a, v, d) => `Refund from ${v} of ${a} received ${d}.`,
+  (a, v, d) => `Chargeback: ${a} from ${v} reversed on ${d}.`,
+  (a, v, d) => `${v} credited back ${a} on ${d}.`,
+];
+const HARD_CHARGES = [
+  (a, v, d, via, fee) => `Paid ${a}${via} to ${v} on ${d}${fee}.`,
+  (a, v, d, via, fee) => `${d}: ${v} invoice settled${via}, ${a}${fee}.`,
+  (a, v, d, via, fee) => `We were charged ${a}${fee} by ${v}${via}, dated ${d}.`,
+];
+
+function makeHardCase(seed) {
+  const r = rng(seed ^ 0x5bd1e995);
+  const pick = (n) => Math.floor(r() * n);
+  const [name, suffix] = VENDORS[pick(VENDORS.length)];
+  const currency = CURRENCIES[pick(CURRENCIES.length)];
+  const yen = currency.code === "JPY";
+  const y = 2022 + pick(4), m = 1 + pick(12), d = 1 + pick(28);
+  const refund = pick(4) === 0;
+  const shorthand = pick(6) === 0;
+  // Principal in cents; shorthand amounts are whole hundreds so "k" notation is exact.
+  const cents = shorthand ? (1 + pick(90)) * 10000 : yen ? (1 + pick(5000)) * 10000 : 100 + pick(500000);
+  // amountText rounds yen to hundreds from a cents-like input; yen amounts here are exact, so scale down.
+  const fmt = (c) => amountText(pick, yen ? c / 100 : c, currency);
+  const money = (c) => shorthand && c === cents
+    ? (pick(2) ? `${currency.symbol}${c / 100000}k` : `${c / 100000}k ${currency.code}`)
+    : fmt(c);
+  const date = pick(3) === 0 ? (currency.code === "USD" ? `${m}/${d}/${y}` : `${d}/${m}/${y}`) : dateText(pick, y, m, d);
+  const vendor = `${name} ${suffix}`;
+  let text;
+  if (refund) {
+    text = HARD_REFUNDS[pick(HARD_REFUNDS.length)](money(cents), vendor, date);
+  } else {
+    const via = pick(3) === 0 ? ` via ${INTERMEDIARIES[pick(INTERMEDIARIES.length)]}` : "";
+    const feeKind = shorthand ? 0 : pick(3); // 0 none, 1 included in the total, 2 on top
+    const feeCents = yen ? (1 + pick(9)) * 10000 : 50 + pick(1500);
+    const fee = feeKind === 1 ? ` (incl. a ${fmt(feeCents)} fee)` : feeKind === 2 ? ` plus a ${fmt(feeCents)} fee` : "";
+    text = HARD_CHARGES[pick(HARD_CHARGES.length)](money(feeKind === 1 ? cents + feeCents : cents), vendor, date, via, fee);
+  }
+  const value = yen ? String(cents / 100) : (cents / 100).toFixed(2);
+  return {
+    input: { text },
+    expected: { amount: (refund ? "-" : "") + value, currency: currency.code, date: `${y}-${pad(m)}-${pad(d)}`, vendor: name.toUpperCase() },
+  };
+}
+
+/** Easy: 30 train, 30 validation, 60 final. Hard: 40, 40, 100. Disjoint seeds per split. */
+export function dataset(level = "easy") {
+  const [train, validation, final] = level === "hard" ? [40, 40, 100] : [30, 30, 60];
   const cases = [
-    ...Array.from({ length: train }, (_, i) => ({ id: `train-${i}`, split: "train", ...makeCase(1000 + i) })),
-    ...Array.from({ length: validation }, (_, i) => ({ id: `validation-${i}`, split: "validation", ...makeCase(2000 + i) })),
+    ...Array.from({ length: train }, (_, i) => ({ id: `train-${i}`, split: "train", ...makeCase(1000 + i, level) })),
+    ...Array.from({ length: validation }, (_, i) => ({ id: `validation-${i}`, split: "validation", ...makeCase(2000 + i, level) })),
   ];
-  const finalCases = Array.from({ length: final }, (_, i) => ({ id: `final-${i}`, ...makeCase(3000 + i) }));
+  const finalCases = Array.from({ length: final }, (_, i) => ({ id: `final-${i}`, ...makeCase(3000 + i, level) }));
   return { cases, finalCases };
 }
 

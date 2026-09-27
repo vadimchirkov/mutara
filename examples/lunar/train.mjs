@@ -67,7 +67,7 @@ export function fitModel(fit) {
 }
 
 export async function train({ storage, id, seed = 7919, wind = 20, gate = "both", fixed = false, controller = "heuristic",
-  auditWind = wind, onProgress = () => {} }) {
+  auditWind = wind, replayOnly = false, onProgress = () => {} }) {
   if (!storage || typeof id !== "string" || !id.trim() || !Number.isSafeInteger(seed) || seed < 1 || seed > 40000) {
     throw new Error("Invalid campaign");
   }
@@ -82,11 +82,17 @@ export async function train({ storage, id, seed = 7919, wind = 20, gate = "both"
   let fit = null; // accumulated training-flight statistics, rebuilt from the journal on replay
   async function run(experimentId, plan) {
     adapter.validatePlan(plan);
+    // Replay-only (reports): never start or resume an experiment, only read finished journals.
+    if (replayOnly && (await h.state(experimentId)).status !== "finished") throw new Error(`Not finished: ${experimentId}`);
     const saved = await h.startOrResume(experimentId, plan);
     if (digest(saved.plan) !== digest(plan) || saved.coreId !== coreId ||
         saved.adapterId !== digest({ implementation: adapter.implementation, recovery: adapter.recovery })) {
       throw new Error("Campaign artifact changed; restore it or use a new ID");
     }
+    // A job whose run was lost (crash, dead interpreter) blocks the experiment. The simulation is repeatable,
+    // so rerun it under the same job ID; if it fails again, wait() surfaces the error.
+    const job = saved.status === "blocked" && saved.pending?.runs.find((r) => !r.receipt)?.job;
+    if (job) await h.send(experimentId, { tag: "retry", jobId: job.id });
     return h.wait(experimentId);
   }
   try {
@@ -117,7 +123,7 @@ export async function train({ storage, id, seed = 7919, wind = 20, gate = "both"
     const report = { id, seed, wind, auditWind, gate, fixed, controller, model: fitModel(fit), phase: "finished", runtime, champion: champion.config,
       accepted: history.filter((r) => r.accepted).length,
       caughtByValidation: history.filter((r) => r.trainingOnly).length,
-      audit: { stock: audit.baseline, champion: audit.candidate }, history };
+      audit: { stock: audit.baseline, champion: audit.candidate }, auditScores: audit.scores, history };
     await onProgress(report);
     return report;
   } finally { await h.close(); }
@@ -131,7 +137,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       auditWind: Number(auditWindText), onProgress: (s) =>
       console.log(s.phase === "training" ?
         `gen ${s.generation}: ${s.accepted ? "ACCEPT" : s.trainingOnly ? "caught " : "reject "} ` +
-        `Δtrain ${s.training.toFixed(1)} Δval ${s.validation.toFixed(1)}` : JSON.stringify({ ...s, history: undefined }, null, 1)) });
+        `Δtrain ${s.training.toFixed(1)} Δval ${s.validation.toFixed(1)}` : JSON.stringify({ ...s, history: undefined, auditScores: undefined }, null, 1)) });
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

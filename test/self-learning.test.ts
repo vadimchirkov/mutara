@@ -69,6 +69,19 @@ describe("generic learning lifecycle", () => {
     expect(evaluate).not.toHaveBeenCalled();
   });
 
+  it("waits for a job that runs longer than the ask timeout", async () => {
+    // TEOB runs the effect inside the entity loop, so get_state queues behind a slow job.
+    const execute = async (job: { input: unknown }) => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return { output: job.input, cost: 1 };
+    };
+    const h = learnerHarness(path("slow"), adapter({ execute }), { askTimeoutMs: 50 });
+    try {
+      await h.start("score", plan());
+      expect((await h.wait("score")).champion?.config.value).toBe(2);
+    } finally { await h.close(); }
+  });
+
   it.each([{ budget: 1 }, { executions: 1 }])("stops before exceeding reservations: %j", async (limits) => {
     const execute = vi.fn(adapter().execute);
     const h = learnerHarness(path(`budget-${Object.keys(limits)[0]}`), adapter({ execute }));

@@ -107,7 +107,10 @@ export const adapter = {
     if (runtimes.size !== 1) throw new Error(`Runs came from different simulators: ${[...runtimes].join(" vs ")}`);
     const evaluation = Object.fromEntries(Object.keys(p.cases).map((split) => {
       const data = (side) => runs.find((r) => r.job.key === `${split}:${side}`).observation.data.rows;
-      return [split, { baseline: summarize(data("baseline")), candidate: summarize(data("candidate")) }];
+      const [baseline, candidate] = [data("baseline"), data("candidate")];
+      // The audit keeps per-episode returns (same seeds both sides) for paired significance tests (compare.mjs).
+      return [split, { baseline: summarize(baseline), candidate: summarize(candidate), ...(p.phase === "audit" &&
+        { scores: { baseline: baseline.map((r) => r.score), candidate: candidate.map((r) => r.score) } }) }];
     }));
     // Model-fit statistics from training flights only (both sides); validation never feeds the fit.
     const fits = runs.filter((r) => r.job.key.startsWith("training:") && r.observation.data.fit).map((r) => r.observation.data.fit);

@@ -4,12 +4,13 @@ import { createLearner, type Adapter, type BasePlan, type Command, type LearnerO
 import type { Identity } from "./version.js";
 
 /** Optional standalone runner. The learner itself can use an application's TEOB runtime. */
-export function learnerHarness<V extends Identity, P extends BasePlan<V>, E>(path: string, adapter: Adapter<V, P, E>, options: LearnerOptions = {}) {
+export function learnerHarness<V extends Identity, P extends BasePlan<V>, E>(path: string, adapter: Adapter<V, P, E>,
+  { askTimeoutMs = 30_000, ...options }: LearnerOptions & { askTimeoutMs?: number } = {}) {
   const learner = createLearner(adapter, options);
   const waiters = new Map<string, Set<() => void>>();
   const completed = new Set<string>();
   // The published TEOB runtime recovers an entity when it is first addressed.
-  const { runtime } = createSqliteRuntime({ path, askTimeoutMs: 30_000,
+  const { runtime } = createSqliteRuntime({ path, askTimeoutMs,
     onPersisted(batch) {
       if (batch.records.some((r) => ["experiment_finished", "experiment_failed", "experiment_blocked"].includes(r.manifest))) {
         completed.add(batch.entityId); waiters.get(batch.entityId)?.forEach((resolve) => resolve());
@@ -20,8 +21,11 @@ export function learnerHarness<V extends Identity, P extends BasePlan<V>, E>(pat
   const ready = runtime.start();
   async function send(id: string, command: Command<V, P, E>) {
     await ready;
-    const r = await runtime.ask(EntityId(id), command, learner.category);
-    if (!r.ok) throw new Error(`Cannot send ${command.tag} to experiment ${id}`);
+    let r = await runtime.ask(EntityId(id), command, learner.category);
+    // TEOB runs a job inside the entity loop, so asks queue behind it. A slow job is not a dead
+    // entity: re-ask a read. Other commands may have been applied; surface the timeout instead.
+    while (!r.ok && r.error.tag === "Timeout" && command.tag === "get_state") r = await runtime.ask(EntityId(id), command, learner.category);
+    if (!r.ok) throw new Error(`Cannot send ${command.tag} to experiment ${id}: ${JSON.stringify(r.error)}`);
     if (r.value.reply?.tag === "error") throw new Error(r.value.reply.message);
     return r.value.reply;
   }

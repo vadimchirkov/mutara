@@ -550,6 +550,8 @@ function createEvaluationExperiment<P extends PromptInput>(args: {
   };
 }
 
+const STAGE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+
 async function runEntity<V extends { id: string; parentId: string | null }, P extends BasePlan<V>, E>(
   storage: string,
   entityId: string,
@@ -559,7 +561,10 @@ async function runEntity<V extends { id: string; parentId: string | null }, P ex
   maxRetries: number,
   category: string,
 ): Promise<State<V, P, E>> {
-  const h = learnerHarness(storage, adapter, { category });
+  // TEOB runs a job's side effect inside the entity's turn, so `get_state` waits behind a
+  // model call in flight. The harness defaults (30 s per ask, 5 min per stage) are too short
+  // for LLM jobs; hung calls must be bounded by the task runner itself.
+  const h = learnerHarness(storage, adapter, { category, askTimeoutMs: STAGE_TIMEOUT_MS });
   try {
     const saved = await h.startOrResume(entityId, plan);
     if (saved.coreId !== coreId || saved.adapterId !== adapterIdOf(adapter) ||
@@ -569,7 +574,7 @@ async function runEntity<V extends { id: string; parentId: string | null }, P ex
     let attempts = 0;
     for (;;) {
       try {
-        return await h.wait(entityId);
+        return await h.wait(entityId, STAGE_TIMEOUT_MS);
       } catch (error) {
         if (recovery === "manual") throw error;
         const s = await h.state(entityId);
