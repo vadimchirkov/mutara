@@ -30,7 +30,7 @@ the host automatically. Preserve the existing strategy as a fallback.
   distributed as a local package, not a verified public npm release. Do not run
   `npm install mutara` expecting this project or invent a registry URL.
 - From the checkout: `pnpm install --frozen-lockfile`, `pnpm pack`. In the host:
-  `pnpm add /absolute/path/to/mutara-0.1.0.tgz` (or the host's package-manager equivalent).
+  `pnpm add /absolute/path/to/mutara-0.2.0.tgz` (or the host's package-manager equivalent).
 - Requirements: Node.js 22+, ESM, writable SQLite storage. The package pins the
   published `@lambda-house/teob-ts@0.4.2`; it needs no sibling TEOB checkout.
   Native SQLite installation may require a compiler if no prebuilt binary is available.
@@ -47,11 +47,15 @@ In the checkout the path is `skills/mutara`.
 | Bounded float/int settings or a fixed list of string variants; metrics returned with execution | `optimize` from `mutara/optimizer`; [optimizer.md](references/optimizer.md) |
 | Same optimizer with manual receipt reconciliation, rollback, a longer wait or an existing TEOB runtime | `createOptimizer` returns `{ adapter, plan }`; [optimizer.md](references/optimizer.md) and [operations.md](references/operations.md) |
 | Custom proposals, hard constraints, nonstandard case allocation or delayed/human feedback | `Adapter` from `mutara`; [api.md](references/api.md) and [assets/adapter.mjs](assets/adapter.mjs) |
+| Multi-round prompt improvement from failure traces, single or multi-component, with merge (GEPA-style reflection) | `optimizeReflective` from `mutara/reflective`; [reflective.md](references/reflective.md) |
 
 Do not build an adapter when the optimizer covers the task. Do not force hard
 constraints into weighted metrics: a gain in one metric can outweigh a regression
-in another. Built-in search samples parameters independently; it cannot generate
-new prompt text or tool implementations. Pin predefined variants in the artifact.
+in another. The declarative optimizer's built-in search samples parameters
+independently; it cannot generate new prompt text or tool implementations. Pin
+predefined variants in the artifact, or use the reflective workflow
+(`optimizeReflective`), which generates one prompt per round through a separate
+journaled reflection job — never inside synchronous `propose`.
 
 ## Implement the integration
 
@@ -96,7 +100,9 @@ with identical options resumes or reads it; a custom harness must not repeat
 
 For custom adapters, `propose` is synchronous and receives the complete trial history. For model-generated
 proposals, generate and validate a bounded candidate list beforehand and record it
-in the plan/artifact, or design a separate journaled proposal workflow if requested.
+in the plan/artifact, use the reflective workflow (`optimizeReflective`, which
+journals each reflection as its own proposal experiment), or design a separate
+journaled proposal workflow if requested.
 Do not hide async API calls inside `propose` or use uncaptured random choices.
 
 ## Verify and hand over

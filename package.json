@@ -1,6 +1,6 @@
 {
   "name": "teob-mutara",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "license": "MIT",
   "description": "Gated experiment harness — journal every trial, gate every promotion, recover every crash.",
@@ -26,6 +26,10 @@
     "./optimizer": {
       "types": "./dist/optimizer.d.ts",
       "import": "./dist/optimizer.js"
+    },
+    "./reflective": {
+      "types": "./dist/reflective.d.ts",
+      "import": "./dist/reflective.js"
     }
   },
   "files": [
@@ -34,6 +38,7 @@
     "docs",
     "skills/mutara",
     "examples/minimal.mjs",
+    "examples/reflective-demo.mjs",
     "examples/prompt-gate/*.mjs",
     "examples/prompt-gate/proposals.json",
     "examples/prompt-gate/fixtures/*.json",
@@ -52,6 +57,7 @@
     "build": "tsc -p tsconfig.build.json",
     "prepack": "pnpm run build",
     "demo": "pnpm run build && node examples/minimal.mjs",
+    "demo:reflective": "pnpm run build && node examples/reflective-demo.mjs",
     "test:package": "node scripts/check-package.mjs"
   },
   "dependencies": {

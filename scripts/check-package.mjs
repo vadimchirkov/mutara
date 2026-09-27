@@ -42,7 +42,9 @@ try {
   writeFileSync(join(directory, "consumer.ts"), `import { version, digest, type Adapter, type BasePlan } from "teob-mutara";
 import { learnerHarness } from "teob-mutara/sqlite";
 import { optimize, createOptimizer } from "teob-mutara/optimizer";
+import { buildReflectionPrompt, type ReflectiveOptions } from "teob-mutara/reflective";
 export { optimize, createOptimizer };
+void buildReflectionPrompt; void (null as unknown as ReflectiveOptions);
 const initial = version({ threshold: 0.5 }, digest({ task: "consumer" }));
 type Plan = BasePlan<typeof initial>;
 export function connect(adapter: Adapter<typeof initial, Plan, number>) {

@@ -1,9 +1,11 @@
 # Public API
 
-Public entry points are `mutara` (core), `mutara/sqlite` (harness), and
-`mutara/optimizer` (declarative search). Do not import internal `dist` files.
-For parameter tuning, start with [optimizer.md](optimizer.md); this reference
-covers custom adapters. All entry points include TypeScript declarations.
+Public entry points are `mutara` (core), `mutara/sqlite` (harness),
+`mutara/optimizer` (declarative search) and `mutara/reflective`
+(GEPA-style reflective prompt optimization). Do not import internal `dist` files.
+For parameter tuning, start with [optimizer.md](optimizer.md); for multi-round
+prompt improvement from failure traces, see [reflective.md](reflective.md);
+this reference covers custom adapters. All entry points include TypeScript declarations.
 A strategy can be any validated `Identity`, or use the
 built-in `Version<Config>` containing `id`, `parentId`, `implementationId`, `config`.
 
