@@ -1,9 +1,22 @@
 # Lessons from the game starters
 
-The game examples (tic-tac-toe, Connect-4 5×5, Pig, Kuhn poker, Pong) were
-removed to keep the repo focused; their code and full READMEs live in git
-history (last present at commit `3bf5441`). Each ran on the public engine with
-no changes to `src/`. What they taught about the engine itself:
+The game examples were removed to keep the repo focused. Each ran on the public
+engine with no changes to `src/`. Their code and full READMEs, with the raw
+numbers behind every claim below, live in git history:
+
+| Game | Last version | Added in |
+|---|---|---|
+| Tic-tac-toe | [examples/tictactoe](https://github.com/vadimchirkov/mutara/tree/3c97b9f/examples/tictactoe) | [b92a930](https://github.com/vadimchirkov/mutara/commit/b92a930) |
+| Connect-4 5×5 | [examples/connect4](https://github.com/vadimchirkov/mutara/tree/3c97b9f/examples/connect4) | [b92a930](https://github.com/vadimchirkov/mutara/commit/b92a930) |
+| Pig | [examples/pig](https://github.com/vadimchirkov/mutara/tree/3c97b9f/examples/pig) | [bfeea1a](https://github.com/vadimchirkov/mutara/commit/bfeea1a) |
+| Kuhn poker | [examples/kuhn](https://github.com/vadimchirkov/mutara/tree/3c97b9f/examples/kuhn) | [e4e4d75](https://github.com/vadimchirkov/mutara/commit/e4e4d75) |
+| Pong | [examples/pong](https://github.com/vadimchirkov/mutara/tree/3c97b9f/examples/pong) | [e57e0ae](https://github.com/vadimchirkov/mutara/commit/e57e0ae) |
+
+The per-game idea table (every feature tried, with status) is
+[STRATEGIES.md](https://github.com/vadimchirkov/mutara/blob/3c97b9f/examples/STRATEGIES.md).
+Restore any of them with `git checkout 3c97b9f -- examples/<name>`.
+
+What they taught about the engine itself:
 
 ## Evaluation design
 
