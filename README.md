@@ -120,17 +120,12 @@ progress.
 | Example | What is tuned | Result on held-out |
 |---|---|---|
 | [Lunar Lander in wind](examples/lunar/) | 10 controller constants of Gymnasium's lander | solved episodes 51–64% → 78–95% (3 seeds, 200 episodes each) |
-| [Tic-tac-toe](examples/tictactoe/) | MCTS settings, strategy components, machine-invented features | score 0.47 → 0.83 |
-| [Connect-4 5×5](examples/connect4/) | Transfer of components to a harder game | 0.53 → 0.745 |
-| [Pig](examples/pig/) | Decisions under dice chance | 0.47 → 0.755 |
-| [Pong](examples/pong/) | Feature-based policy, built link by link | 200/200 vs. a tracking bot |
 
 **What didn't work, on purpose shown:**
 
-- [Kuhn poker](examples/kuhn/): greedy search plateaus with hidden information;
-  plugging CFR in as the candidate source reaches equilibrium.
-- [Crypto paper trading](examples/crypto-paper/): tuned SMA strategy has no edge
-  over buy-and-hold after fees.
+- Kuhn poker: greedy search plateaus with hidden information; plugging CFR in
+  as the candidate source reaches equilibrium. This and other lessons from the
+  removed game starters are in [LESSONS.md](examples/LESSONS.md).
 - [Lunar gate vs. no gate](examples/lunar/#gate-vs-ungated-negative-result): on a
   10-constant controller the gate gave no measurable quality gain, only fewer
   promotions for the same quality.
@@ -227,8 +222,8 @@ folder. Example prompt:
 
 - `src/` — the library; public imports `teob-mutara`, `teob-mutara/sqlite`,
   `teob-mutara/optimizer`, `teob-mutara/reflective`.
-- `examples/` — measured examples above, plus [STRATEGIES.md](examples/STRATEGIES.md)
-  with every game-strategy idea tried and its status.
+- `examples/` — measured examples above, plus [LESSONS.md](examples/LESSONS.md)
+  — what the removed game starters taught about the engine.
 - `skills/mutara/` — agent skill and adapter template.
 - `test/` — library tests; `scripts/check-package.mjs` — clean-install check.
 
