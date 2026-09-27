@@ -32,7 +32,7 @@ export async function runProgram(chat, prompts, query) {
 // Pinned checker environment; IFBENCH_PYTHON=/path/to/python (with these packages) skips uv.
 export const PYTHON = process.env.IFBENCH_PYTHON ? [process.env.IFBENCH_PYTHON] : ["uv", "run", "-q", "--python", "3.12",
   "--with", "nltk==3.9.1", "--with", "spacy==3.8.7", "--with", "langdetect==1.0.9", "--with", "emoji==2.14.1",
-  "--with", "syllapy==0.7.2", "--with", "immutabledict==4.2.1", "--with",
+  "--with", "syllapy==0.7.2", "--with", "setuptools==80.9.0", "--with", "immutabledict==4.2.1", "--with",
   "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
   "python"];
 

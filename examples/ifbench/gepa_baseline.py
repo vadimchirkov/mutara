@@ -15,12 +15,31 @@ import argparse
 import json
 import os
 import sys
+import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from metric import metric  # noqa: E402  (also redirects checker chatter to stderr)
 
 import dspy  # noqa: E402
+
+# NLTK's lazy corpus loaders race under dspy's threaded evaluation
+# ('WordListCorpusReader' has no attribute '_LazyCorpusLoader__args').
+# All checker calls go through one lock; warmed up once before threads start.
+_metric_lock = threading.Lock()
+
+
+def checked(case_dict, response):
+    with _metric_lock:
+        return metric(case_dict, response)
+
+
+try:
+    from nltk.corpus import stopwords
+    with _metric_lock:
+        stopwords.words("english")
+except Exception:
+    pass
 
 parser = argparse.ArgumentParser()
 parser.add_argument("directory")
@@ -81,20 +100,33 @@ def case(example):
     return {"prompt": example.prompt, "instruction_id_list": example.instruction_id_list, "kwargs": example.kwargs}
 
 
+def _predictor_text(outputs):
+    # pred_trace[0][2] is a dspy Prediction in practice, a plain dict by type.
+    # Support both: .get works on either (Prediction defines .get).
+    try:
+        text = outputs.get("final_response", None) or outputs.get("response", None)
+    except Exception:
+        text = getattr(outputs, "final_response", None) or getattr(outputs, "response", None)
+    return text or ""
+
+
 def gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):
     """Score of the whole program; feedback on the named predictor's own output (artifact feedback_fn_map)."""
-    score = metric(case(gold), pred.response or "")["score"]
+    c = case(gold)
+    score = checked(c, pred.response or "")["score"]
     text = pred.response or ""
     if pred_name and pred_trace:
-        outputs = pred_trace[0][2]
-        text = getattr(outputs, "final_response", None) or getattr(outputs, "response", None) or ""
-    return dspy.Prediction(score=score, feedback=metric(case(gold), text)["feedback"])
+        text = _predictor_text(pred_trace[0][2])
+    return dspy.Prediction(score=score, feedback=checked(c, text)["feedback"])
 
 
 def evaluate(program, examples):
-    evaluator = dspy.Evaluate(devset=examples, metric=lambda gold, pred, trace=None: metric(case(gold), pred.response or "")["score"],
+    evaluator = dspy.Evaluate(devset=examples, metric=lambda gold, pred, trace=None: checked(case(gold), pred.response or "")["score"],
                               num_threads=args.threads, failure_score=0.0, display_progress=False)
-    return {example.id: float(score) for example, _prediction, score in evaluator(program).results}
+    out = {}
+    for example, _prediction, score in evaluator(program).results:
+        out[example.id] = float(score.score if hasattr(score, "score") else score)
+    return out
 
 
 train, val, test = load("train"), load("val"), load("test")
