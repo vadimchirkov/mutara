@@ -1,7 +1,7 @@
 # Public API
 
-Public entry points are `mutara` (core), `mutara/sqlite` (harness),
-`mutara/optimizer` (declarative search) and `mutara/reflective`
+Public entry points are `teob-mutara` (core), `teob-mutara/sqlite` (harness),
+`teob-mutara/optimizer` (declarative search) and `teob-mutara/reflective`
 (GEPA-style reflective prompt optimization). Do not import internal `dist` files.
 For parameter tuning, start with [optimizer.md](optimizer.md); for multi-round
 prompt improvement from failure traces, see [reflective.md](reflective.md);

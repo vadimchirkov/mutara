@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "type": "module",
   "license": "MIT",
-  "description": "Gated experiment harness — journal every trial, gate every promotion, recover every crash.",
+  "description": "Universal optimizer that proves its gains: improves prompts, strategies and parameters, keeps only changes that win on unseen data, and resumes after crashes without paying twice.",
   "repository": {
     "type": "git",
     "url": "https://github.com/vadimchirkov/mutara.git"

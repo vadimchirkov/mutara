@@ -36,7 +36,7 @@ closures and services are not captured by hashing a function.
 ## Options and defaults
 
 Import `OptimizerOptions`, `OptimizeOptions`, `OptimizerResult`, `ExecutionContext`,
-`Space`, `Dimension`, `Metric` and `DecisionRule` types from `mutara/optimizer`.
+`Space`, `Dimension`, `Metric` and `DecisionRule` types from `teob-mutara/optimizer`.
 
 | Option | Contract / default |
 |---|---|

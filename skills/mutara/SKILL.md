@@ -1,13 +1,14 @@
 ---
 name: mutara
-description: Integrate Mutara for measured agent strategy improvement using its declarative optimizer or custom adapters, with budgets and TEOB recovery. Use for parameter tuning, prompt/retrieval/tool variants, or connecting the Mutara library. Does not train model weights.
+description: Integrate Mutara, a universal optimizer that keeps only gains proven on unseen data, with budgets and crash recovery. Use for improving prompts from failures (reflective optimization), tuning parameters, comparing prompt/retrieval/tool variants, or plugging an external candidate generator. Does not train model weights.
 ---
 
 # Mutara
 
 Mutara is a TypeScript/ESM library over TEOB. The host supplies execution and
-evaluation. The declarative optimizer supplies seeded random candidates and a
-weighted acceptance rule; a custom adapter can replace those choices. Both use
+evaluation. Candidates come from the reflective optimizer (prompt rewrites from
+failures, via a host-supplied reflector model), the declarative optimizer (seeded
+random parameters and a weighted acceptance rule), or a custom adapter. All use
 one journaled experiment engine with budgets, recovery and rollback. There is
 no built-in LLM, benchmark dataset, production deployment, or weight training.
 
@@ -25,18 +26,18 @@ the host automatically. Preserve the existing strategy as a fallback.
 
 ## Locate and install
 
-- If `mutara` is installed, use its public exports and bundled skill references.
-- Otherwise find the user's Mutara checkout or tarball. The project is currently
-  distributed as a local package, not a verified public npm release. Do not run
-  `npm install mutara` expecting this project or invent a registry URL.
-- From the checkout: `pnpm install --frozen-lockfile`, `pnpm pack`. In the host:
-  `pnpm add /absolute/path/to/mutara-0.2.0.tgz` (or the host's package-manager equivalent).
+- The npm package is `teob-mutara` (not `teob-mutara`, which is unrelated). If it is
+  installed, use its public exports and bundled skill references.
+- Otherwise `pnpm add teob-mutara` (or the host's package-manager equivalent).
+  `teob-mutara/reflective` needs version 0.2.0 or later; if the registry has only
+  an older version, use the user's checkout: `pnpm install --frozen-lockfile`,
+  `pnpm pack`, then `pnpm add /absolute/path/to/teob-mutara-<version>.tgz`.
 - Requirements: Node.js 22+, ESM, writable SQLite storage. The package pins the
   published `@lambda-house/teob-ts@0.4.2`; it needs no sibling TEOB checkout.
   Native SQLite installation may require a compiler if no prebuilt binary is available.
 
 The installed package bundles this skill. To find it programmatically, resolve
-`mutara`'s entrypoint (`dist/index.js`):
+`teob-mutara`'s entrypoint (`dist/index.js`):
 `new URL("../skills/mutara/", import.meta.resolve("teob-mutara"))` locates the skill.
 In the checkout the path is `skills/mutara`.
 
@@ -44,10 +45,10 @@ In the checkout the path is `skills/mutara`.
 
 | Host requirement | API and reference |
 |---|---|
-| Bounded float/int settings or a fixed list of string variants; metrics returned with execution | `optimize` from `mutara/optimizer`; [optimizer.md](references/optimizer.md) |
+| Bounded float/int settings or a fixed list of string variants; metrics returned with execution | `optimize` from `teob-mutara/optimizer`; [optimizer.md](references/optimizer.md) |
 | Same optimizer with manual receipt reconciliation, rollback, a longer wait or an existing TEOB runtime | `createOptimizer` returns `{ adapter, plan }`; [optimizer.md](references/optimizer.md) and [operations.md](references/operations.md) |
-| Custom proposals, hard constraints, nonstandard case allocation or delayed/human feedback | `Adapter` from `mutara`; [api.md](references/api.md) and [assets/adapter.mjs](assets/adapter.mjs) |
-| Multi-round prompt improvement from failure traces, single or multi-component, with merge (GEPA-style reflection) | `optimizeReflective` from `mutara/reflective`; [reflective.md](references/reflective.md) |
+| Custom proposals, hard constraints, nonstandard case allocation or delayed/human feedback | `Adapter` from `teob-mutara`; [api.md](references/api.md) and [assets/adapter.mjs](assets/adapter.mjs) |
+| Multi-round prompt improvement from failure traces, single or multi-component, with merge (GEPA-style reflection) | `optimizeReflective` from `teob-mutara/reflective`; [reflective.md](references/reflective.md) |
 
 Do not build an adapter when the optimizer covers the task. Do not force hard
 constraints into weighted metrics: a gain in one metric can outweigh a regression
