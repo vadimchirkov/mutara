@@ -30,6 +30,8 @@ export interface State<V, P, E> {
   trials: Trial<V, E>[];
   executions: number;
   spent: number;
+  /** Jobs blocking the experiment: each needs a receipt (`received`) or a `retry`. */
+  unresolved?: string[];
   coreId?: string;
   adapterId?: string;
   error?: string;
@@ -71,13 +73,19 @@ export type Event<V, P, E> =
   | { tag: "candidate_decided"; trial: Trial<V, E> }
   | { tag: "experiment_finished" }
   | { tag: "experiment_failed"; message: string }
-  | { tag: "experiment_blocked"; message: string }
+  | { tag: "experiment_blocked"; message: string; jobIds?: string[] }
   | { tag: "strategy_reverted"; version: V; reason: string };
 export type Reply<V, P, E> = { tag: "state"; state: State<V, P, E> } | { tag: "error"; message: string };
-export interface LearnerOptions { category?: string }
+export interface LearnerOptions {
+  category?: string;
+  /** Jobs of one candidate executing at once (default 1). Operational: not journaled. */
+  concurrency?: number;
+}
 const tags = ["experiment_started", "candidate_proposed", "execution_requested", "execution_retried", "execution_received", "observation_recorded",
   "candidate_decided", "experiment_finished", "experiment_failed", "experiment_blocked", "strategy_reverted"] as const;
-const current = <V, P, E>(s: State<V, P, E>) => s.pending?.runs.find((r) => !r.observation);
+const find = <V, P, E>(s: State<V, P, E>, jobId: string) => s.pending?.runs.find((r) => r.job.id === jobId);
+/** Requested before this process started or still executing: no receipt yet. */
+const awaiting = (r: RunRecord) => r.requested && !r.receipt;
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
 /** Allow only floating-point roundoff from summing nonnegative costs. */
 export function exceedsCost(amount: number, limit: number, terms = 1): boolean {
@@ -96,6 +104,8 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
   const name = options.category ?? "learning";
   if (typeof name !== "string" || !name.trim()) throw new Error("Invalid learner category");
   const category = categoryTypes<C, R>(CategoryId(name));
+  const concurrency = options.concurrency ?? 1;
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) throw new Error("Invalid concurrency");
   const validate = (p: P) => {
     canonical(p);
     if (!Number.isSafeInteger(p.rounds) || p.rounds < 1 || p.rounds > 100) throw new Error("Invalid round budget");
@@ -104,6 +114,14 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
     adapter.validatePlan(structuredClone(p));
     adapter.validateVersion(structuredClone(p.initial));
   };
+  /**
+   * TEOB awaits a Run effect inside the entity turn, which would serialize jobs and queue every
+   * ask behind them. Jobs are launched and not awaited; each outcome returns through the mailbox
+   * as `received` or `execution_failed`, like `ctx.sync`. The request is journaled first.
+   */
+  const launch = (s: S, jobs: Job[], ctx: EffectControl<C, R>) => async () => { for (const job of jobs) void execute(s, job, ctx); };
+  const block = (s: S, message: string, jobIds: string[]) =>
+    persist<Ev, R>({ tag: "experiment_blocked", message, jobIds: [...new Set([...(s.unresolved ?? []), ...jobIds])] });
   async function execute(s: S, job: Job, ctx: EffectControl<C, R>) {
     try {
       const receipt = await adapter.execute(structuredClone(job), structuredClone(s.plan!));
@@ -130,6 +148,13 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
           return persist({ tag: "experiment_started", plan: structuredClone(command.plan), coreId, adapterId,
             implementation: { core: coreImplementation, adapter: structuredClone(adapter.implementation) } });
         case "advance": {
+          if (s.status === "blocked" && command.resume) {
+            // Jobs that were executing beside the blocking one lost their outcome in the crash.
+            const lost = (s.pending?.runs ?? []).filter((r) => awaiting(r) && !s.unresolved?.includes(r.job.id));
+            if (!lost.length) return done();
+            if (adapter.recovery === "manual") return block(s, `Unknown outcome of ${lost.map((r) => r.job.id).join(", ")}; reconcile each receipt before continuing`, lost.map((r) => r.job.id));
+            return run(launch(s, lost.map((r) => r.job), ctx));
+          }
           if (s.status !== "running") return done();
           try {
             validate(s.plan!);
@@ -150,55 +175,68 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
               await advance();
               return persist({ tag: "candidate_proposed", round: s.trials.length, candidate, jobs });
             }
-            const record = current(s);
-            const observed = s.pending.runs.filter((r) => r.observation);
-            if (!record || (!record.requested && observed.length && adapter.early?.(structuredClone(observed), structuredClone(s.plan!)) === true)) {
-              const { evaluation, decision } = adapter.assess(structuredClone(observed), structuredClone(s.plan!));
+            const runs = s.pending.runs;
+            for (const r of runs.filter((r) => r.receipt && !r.observation)) {
+              const observation = adapter.grade(structuredClone(r.job), structuredClone(r.receipt!), structuredClone(s.plan!));
+              if (observation === null) continue; // delayed feedback arrives as `observed`
+              validateObservation(observation);
+              await advance();
+              return persist({ tag: "observation_recorded", jobId: r.job.id, observation });
+            }
+            // After recovery nothing executes: every request without a receipt has an unknown outcome.
+            const orphans = runs.filter(awaiting);
+            if (command.resume && orphans.length) {
+              if (adapter.recovery === "manual") return block(s, `Unknown outcome of ${orphans.map((r) => r.job.id).join(", ")}; reconcile each receipt before continuing`, orphans.map((r) => r.job.id));
+              return run(launch(s, orphans.map((r) => r.job), ctx));
+            }
+            // In flight: requested and not observed, so delayed feedback also holds a slot.
+            const active = runs.filter((r) => r.requested && !r.observation).length;
+            const next = runs.findIndex((r) => !r.observation);
+            const prefix = next < 0 ? runs : runs.slice(0, next);
+            // Early stop drains paid jobs in flight, then assesses everything observed. Requests
+            // form a prefix, so the drained observations are the prefix `early` sees next.
+            if (next < 0 || (prefix.length && adapter.early?.(structuredClone(prefix), structuredClone(s.plan!)) === true)) {
+              if (active) return done();
+              const { evaluation, decision } = adapter.assess(structuredClone(prefix), structuredClone(s.plan!));
               canonical({ evaluation, decision });
               if (typeof decision.accepted !== "boolean" || typeof decision.reason !== "string") throw new Error("Invalid decision");
               await advance();
               return persist({ tag: "candidate_decided", trial: { round: s.pending.round, candidate: s.pending.candidate,
                 baselineId: s.champion!.id, evaluation, accepted: decision.accepted, reason: decision.reason } });
             }
-            if (record.receipt) {
-              const observation = adapter.grade(structuredClone(record.job), structuredClone(record.receipt), structuredClone(s.plan!));
-              if (observation === null) return done();
-              validateObservation(observation);
-              await advance();
-              return persist({ tag: "observation_recorded", jobId: record.job.id, observation });
-            }
-            if (record.requested && !command.resume) return done();
-            if (record.requested && adapter.recovery === "manual") return persist({ tag: "experiment_blocked", message: `Unknown outcome of ${record.job.id}; reconcile its receipt before continuing` });
-            const effect = () => execute(s, record.job, ctx);
-            return record.requested ? run(effect) : andRun(persist({ tag: "execution_requested", jobId: record.job.id }), effect);
+            // Budget and execution count for every job were reserved when the candidate was proposed.
+            const start = runs.filter((r) => !r.requested).slice(0, concurrency - active).map((r) => r.job);
+            if (!start.length) return done();
+            return andRun(persist(...start.map((job) => ({ tag: "execution_requested" as const, jobId: job.id }))), launch(s, start, ctx));
           } catch (e) { return persist({ tag: "experiment_failed", message: errorMessage(e) }); }
         }
         case "received": {
-          const record = current(s);
-          if (!["running", "blocked"].includes(s.status) || record?.job.id !== command.jobId || !record.requested || record.receipt) return done();
+          const record = find(s, command.jobId);
+          if (!["running", "blocked"].includes(s.status) || !record || !awaiting(record)) return done();
           try {
             canonical(command.receipt);
             if (command.receipt.cost < 0 || exceedsCost(command.receipt.cost, record.job.costLimit)) throw new Error("Invalid receipt or execution exceeded its cost reservation");
-          } catch (e) { return persist({ tag: "experiment_blocked", message: errorMessage(e) }); }
+          } catch (e) { return block(s, errorMessage(e), [command.jobId]); }
           await advance();
           return persist({ tag: "execution_received", jobId: command.jobId, receipt: structuredClone(command.receipt) });
         }
         case "observed": {
-          const record = current(s);
-          if (s.status !== "running" || record?.job.id !== command.jobId || !record.receipt) return done();
+          const record = find(s, command.jobId);
+          if (s.status !== "running" || !record?.receipt || record.observation) return done();
           try { validateObservation(command.observation); } catch (e) { return reply({ tag: "error", message: errorMessage(e) }); }
           await advance();
           return persist({ tag: "observation_recorded", jobId: command.jobId, observation: structuredClone(command.observation) });
         }
-        case "execution_failed":
-          if (s.status !== "running" || current(s)?.job.id !== command.jobId || current(s)?.receipt) return done();
-          return persist({ tag: "experiment_blocked", message: command.message });
+        case "execution_failed": {
+          const record = find(s, command.jobId);
+          if (!["running", "blocked"].includes(s.status) || !record || !awaiting(record) || s.unresolved?.includes(command.jobId)) return done();
+          return block(s, command.message, [command.jobId]);
+        }
         case "retry": {
-          const record = current(s);
-          if (s.status !== "blocked" || record?.job.id !== command.jobId || !record.requested || record.receipt) return reply({ tag: "error", message: "No failed job to retry" });
+          const record = find(s, command.jobId);
+          if (s.status !== "blocked" || !record || !awaiting(record) || !(s.unresolved ?? [command.jobId]).includes(command.jobId)) return reply({ tag: "error", message: "No failed job to retry" });
           if (adapter.recovery === "manual") return reply({ tag: "error", message: "Retry is unsafe in manual recovery; reconcile the receipt" });
-          await ctx.tellSelf({ tag: "advance", resume: true });
-          return persist({ tag: "execution_retried", jobId: command.jobId });
+          return andRun(persist({ tag: "execution_retried", jobId: command.jobId }), launch(s, [record.job], ctx));
         }
         case "rollback": {
           if (s.status !== "finished" || !command.reason.trim()) return reply({ tag: "error", message: "Rollback requires a finished experiment and a reason" });
@@ -211,18 +249,18 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
     },
     apply(s, e) {
       const update = (id: string, patch: Partial<RunRecord>) => ({ ...s.pending!, runs: s.pending!.runs.map((r) => r.job.id === id ? { ...r, ...patch } : r) });
+      // Resolving a job unblocks only when no other job is still unresolved.
+      const resolve = (id: string): S => {
+        const { error, unresolved, ...rest } = s;
+        const left = (unresolved ?? []).filter((j) => j !== id);
+        return left.length ? { ...rest, status: s.status, error, unresolved: left } as S : { ...rest, status: "running" };
+      };
       switch (e.tag) {
         case "experiment_started": return { ...s, status: "running", plan: e.plan, champion: e.plan.initial, coreId: e.coreId, adapterId: e.adapterId };
         case "candidate_proposed": return { ...s, pending: { round: e.round, candidate: e.candidate, runs: e.jobs.map((job) => ({ job, requested: false })) } };
         case "execution_requested": return { ...s, executions: s.executions + 1, pending: update(e.jobId, { requested: true }) };
-        case "execution_retried": {
-          const { error: _, ...rest } = s;
-          return { ...rest, status: "running" };
-        }
-        case "execution_received": {
-          const { error: _, ...rest } = s;
-          return { ...rest, status: "running", spent: s.spent + e.receipt.cost, pending: update(e.jobId, { receipt: e.receipt }) };
-        }
+        case "execution_retried": return resolve(e.jobId);
+        case "execution_received": return { ...resolve(e.jobId), spent: s.spent + e.receipt.cost, pending: update(e.jobId, { receipt: e.receipt }) };
         case "observation_recorded": return { ...s, pending: update(e.jobId, { observation: e.observation }) };
         case "candidate_decided": {
           const { pending: _, ...rest } = s;
@@ -230,7 +268,7 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
         }
         case "experiment_finished": return { ...s, status: "finished" };
         case "experiment_failed": return { ...s, status: "failed", error: e.message };
-        case "experiment_blocked": return { ...s, status: "blocked", error: e.message };
+        case "experiment_blocked": return { ...s, status: "blocked", error: e.message, ...(e.jobIds ? { unresolved: e.jobIds } : {}) };
         case "strategy_reverted": return { ...s, champion: e.version };
       }
     },

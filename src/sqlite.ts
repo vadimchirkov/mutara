@@ -3,14 +3,14 @@ import { createSqliteRuntime } from "@lambda-house/teob-ts/sqlite";
 import { createLearner, type Adapter, type BasePlan, type Command, type LearnerOptions } from "./engine.js";
 import type { Identity } from "./version.js";
 
-/** An ask that timed out: the entity is busy running a job, not failing. */
+/** An ask that timed out: the entity is busy (a slow adapter hook), not failing. */
 class AskTimeout extends Error {}
 
 /**
  * Optional standalone runner. The learner itself can use an application's TEOB runtime.
  *
- * TEOB runs a job's side effect inside the entity's turn, so any ask (including `state`)
- * waits behind a job in flight; `askTimeoutMs` (default 1 h) bounds that wait. `wait` and
+ * Jobs execute outside the entity's turn, but an ask still waits behind slow adapter hooks;
+ * `askTimeoutMs` (default 1 h) bounds that wait. `wait` and
  * `startOrResume` follow journal progress instead, so a shorter ask timeout only delays them.
  * Bound hung jobs in the adapter's `execute`.
  */

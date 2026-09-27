@@ -208,6 +208,27 @@ describe("reflective GEPA-style optimization", () => {
     });
   });
 
+  it("runs evaluation jobs concurrently with the same result, retrying every failed job", async () => {
+    await withDir(async (dir) => {
+      const sequential = await optimizeReflective(baseOptions(join(dir, "one.db"), { rounds: 2 }));
+      let active = 0, max = 0, failures = 3;
+      const opts = baseOptions(join(dir, "four.db"), { rounds: 2, concurrency: 4, maxRetries: 1 });
+      const parallel = await optimizeReflective({
+        ...opts,
+        run: async (...args) => {
+          max = Math.max(max, ++active);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          active--;
+          // Several jobs of the seed stage fail together; one retry pass must cover all of them.
+          if (failures-- > 0) throw new Error("transient network error");
+          return opts.run(...args);
+        },
+      });
+      expect(max).toBe(4);
+      expect(parallel).toEqual(sequential);
+    });
+  });
+
   it("stops before an unaffordable round and validates budgets upfront", async () => {
     await withDir(async (dir) => {
       const storage = join(dir, "learning.db");

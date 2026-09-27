@@ -306,3 +306,123 @@ it("starts once via startOrResume and reuses the finished state", async () => {
     expect(execute).toHaveBeenCalledTimes(2);
   } finally { await h.close(); }
 });
+
+describe("concurrent jobs", () => {
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const jobs4: Adapter<V, Plan, number>["jobs"] = (_champion, candidate) =>
+    [0, 1, 2, 3].map((i) => ({ key: `s${i}`, input: candidate.config.value * 10 + i, costLimit: 1 }));
+  const wide = { rounds: 3, budget: 12, executions: 12 };
+  const tracked = (ms: number) => {
+    const stats = { active: 0, max: 0, calls: [] as string[] };
+    const execute = async (job: { id: string; input: unknown }) => {
+      stats.calls.push(job.id);
+      stats.max = Math.max(stats.max, ++stats.active);
+      await sleep(ms);
+      stats.active--;
+      return { output: job.input, cost: 1 };
+    };
+    return { stats, execute };
+  };
+  const waitFor = async (check: () => Promise<boolean>) => { while (!(await check())) await sleep(5); };
+
+  it("matches sequential results, caps jobs in flight and finishes sooner", async () => {
+    const outcome = async (concurrency: number) => {
+      const { stats, execute } = tracked(40);
+      const h = learnerHarness(path(`parallel-${concurrency}`), adapter({ jobs: jobs4, execute }), { concurrency });
+      try {
+        const t0 = Date.now();
+        await h.start("score", plan(wide));
+        const s = await h.wait("score");
+        return { s, ms: Date.now() - t0, stats };
+      } finally { await h.close(); }
+    };
+    const one = await outcome(1), four = await outcome(4), two = await outcome(2);
+    const summary = ({ s }: typeof one) => ({ champion: s.champion, trials: s.trials, spent: s.spent, executions: s.executions });
+    expect(summary(four)).toEqual(summary(one));
+    expect(summary(two)).toEqual(summary(one));
+    expect([one.stats.max, two.stats.max, four.stats.max]).toEqual([1, 2, 4]);
+    expect(four.s.executions).toBe(12);
+    expect(four.ms).toBeLessThan(one.ms / 2);
+  });
+
+  it("never reserves beyond the budget while jobs run in parallel", async () => {
+    const { stats, execute } = tracked(10);
+    const h = learnerHarness(path("parallel-budget"), adapter({ jobs: jobs4, execute }), { concurrency: 4 });
+    try {
+      await h.start("score", plan({ ...wide, budget: 6 }));
+      await expect(h.wait("score")).rejects.toThrow("budget exhausted");
+      const s = await h.state("score");
+      expect([s.executions, s.spent, stats.calls.length]).toEqual([4, 4, 4]);
+    } finally { await h.close(); }
+  });
+
+  it("drains paid jobs in flight after an early stop and counts their cost", async () => {
+    const run = async (concurrency: number) => {
+      const assessed: number[] = [];
+      const { execute } = tracked(5);
+      const h = learnerHarness(path(`parallel-early-${concurrency}`), adapter({
+        jobs: (_c, candidate) => Array.from({ length: 8 }, (_, i) => ({ key: `s${i}`, input: candidate.config.value, costLimit: 1 })),
+        execute, early: (runs) => runs.length >= 2,
+        assess: (runs) => { assessed.push(runs.length); return { evaluation: runs.length, decision: { accepted: true, reason: "early" } }; },
+      }), { concurrency });
+      try {
+        await h.start("score", plan({ rounds: 1, budget: 8, executions: 8 }));
+        const s = await h.wait("score");
+        return { executions: s.executions, spent: s.spent, assessed };
+      } finally { await h.close(); }
+    };
+    expect(await run(1)).toEqual({ executions: 2, spent: 2, assessed: [2] });
+    // Freed slots keep launching until the gate fires, so the count depends on timing; every
+    // paid job is still charged and assessed, and the gate stops well short of all 8.
+    const parallel = await run(4);
+    expect(parallel.executions).toBeGreaterThanOrEqual(4);
+    expect(parallel.executions).toBeLessThan(8);
+    expect(parallel).toEqual({ executions: parallel.executions, spent: parallel.executions, assessed: [parallel.executions] });
+  });
+
+  it("keeps a failed job blocked while its neighbours finish, then retries only it", async () => {
+    let calls = 0;
+    const execute = vi.fn(async (job: { id: string; input: unknown }) => {
+      if (job.id.endsWith("/0/0") && ++calls === 1) throw new Error("transient");
+      await sleep(20);
+      return { output: job.input, cost: 1 };
+    });
+    const h = learnerHarness(path("parallel-fail"), adapter({ jobs: jobs4, execute }), { concurrency: 4 });
+    try {
+      await h.start("score", plan({ ...wide, rounds: 1 }));
+      await waitFor(async () => (await h.state("score")).pending!.runs.filter((r) => r.receipt).length === 3);
+      const blocked = await h.state("score");
+      expect([blocked.status, blocked.unresolved]).toEqual(["blocked", ["learning/score/0/0"]]);
+      await h.send("score", { tag: "retry", jobId: "learning/score/0/0" });
+      const s = await h.wait("score");
+      expect([s.status, s.executions, s.spent, execute.mock.calls.length]).toEqual(["finished", 4, 4, 5]);
+    } finally { await h.close(); }
+  });
+
+  it.each(["manual", "repeatable"] as const)("recovers several jobs in flight after a crash (%s)", async (recovery) => {
+    const db = path(`parallel-crash-${recovery}`);
+    // Job 0 completes; jobs 1-3 are still executing when the process dies.
+    const first = learnerHarness(db, adapter({ recovery, jobs: jobs4,
+      execute: (job) => job.id.endsWith("/0") ? Promise.resolve({ output: job.input, cost: 1 }) : new Promise(() => {}) }), { concurrency: 4 });
+    try {
+      await first.start("score", plan({ ...wide, rounds: 1 }));
+      await waitFor(async () => (await first.state("score")).pending!.runs.some((r) => r.receipt));
+    } finally { await first.close(); }
+    const lost = [1, 2, 3].map((i) => `learning/score/0/${i}`);
+    const { stats, execute } = tracked(5);
+    const second = learnerHarness(db, adapter({ recovery, jobs: jobs4, execute }), { concurrency: 4 });
+    try {
+      if (recovery === "manual") {
+        await expect(second.wait("score")).rejects.toThrow(`Unknown outcome of ${lost.join(", ")}`);
+        expect((await second.state("score")).unresolved).toEqual(lost);
+        for (const [i, jobId] of lost.entries()) {
+          await second.send("score", { tag: "received", jobId, receipt: { output: 11 + i, cost: 1 } });
+          expect((await second.state("score")).status).toBe(i < 2 ? "blocked" : "running");
+        }
+      }
+      const s = await second.wait("score");
+      expect([s.status, s.executions, s.spent]).toEqual(["finished", 4, 4]);
+      expect(stats.calls.sort()).toEqual(recovery === "manual" ? [] : lost);
+    } finally { await second.close(); }
+  });
+});

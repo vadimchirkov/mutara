@@ -42,6 +42,7 @@ Import `OptimizerOptions`, `OptimizeOptions`, `OptimizerResult`, `ExecutionConte
 |---|---|
 | `id` | Nonempty experiment ID, required by `optimize`; globally unique across shared executors. |
 | `storage` | SQLite path; default `:memory:` cannot survive process exit. Create parent directories first. |
+| `concurrency` | Jobs of one trial in flight at once; default 1. Not journaled; may differ on reopen. For `createOptimizer`, pass it to `createLearner`/`learnerHarness`. |
 | `space` | Nonempty object of dimensions, each declaring `initial`. Shapes below. |
 | `metrics` | Nonempty list of unique names, `higher`/`lower` direction and positive finite `weight`. |
 | `implementation` | Required finite JSON pinning executor and evaluation artifacts. |
@@ -70,8 +71,10 @@ as `unknown`; narrow them at the host integration point.
 
 `context` contains `{ id, sample, costLimit }`. For zero-based trial `r` and case
 `i`, `sample = r * samplesPerTrial + i`. Baseline and candidate use that same
-index, but distinct job IDs. Jobs execute sequentially, baseline then candidate
-for each case. Map `sample` to a pinned task; use `id` for actual idempotency.
+index, but distinct job IDs. Jobs are requested baseline then candidate for
+each case; with `concurrency: N` (an `optimize` option, default 1) up to N run at
+once. Only the `sequential` rule is affected: pairs already in flight when it
+stops are still paid and counted. Map `sample` to a pinned task; use `id` for actual idempotency.
 
 Prepare `trials * samplesPerTrial` independent evaluation cases for bounded
 search. Do not recycle indices with modulo or treat repetitions of the same

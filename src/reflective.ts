@@ -92,7 +92,10 @@ export interface ReflectiveOptions<P extends PromptInput = string> {
   recovery?: "repeatable" | "idempotent" | "manual";
   parentStrategy?: "champion" | "pareto";
   seed?: number;
+  /** Retries per failed job (default 3; repeatable/idempotent recovery only). */
   maxRetries?: number;
+  /** Model calls of one evaluation stage in flight at once (default 1). Does not change results. */
+  concurrency?: number;
   /** GEPA merge attempts; each replaces one reflection round. Default 0. Needs several components to apply. */
   maxMerges?: number;
   /** Held-out cases: never shown to the reflector, report-only audit at the end. */
@@ -560,18 +563,18 @@ async function runEntity<V extends { id: string; parentId: string | null }, P ex
   recovery: "repeatable" | "idempotent" | "manual",
   maxRetries: number,
   category: string,
+  concurrency = 1,
 ): Promise<State<V, P, E>> {
-  // TEOB runs a job's side effect inside the entity's turn, so `get_state` waits behind a
-  // model call in flight. The harness defaults (30 s per ask, 5 min per stage) are too short
-  // for LLM jobs; hung calls must be bounded by the task runner itself.
-  const h = learnerHarness(storage, adapter, { category, askTimeoutMs: STAGE_TIMEOUT_MS });
+  // The harness default (5 min without journal progress) is too short for LLM jobs; hung
+  // calls must be bounded by the task runner itself.
+  const h = learnerHarness(storage, adapter, { category, concurrency, askTimeoutMs: STAGE_TIMEOUT_MS });
   try {
     const saved = await h.startOrResume(entityId, plan);
     if (saved.coreId !== coreId || saved.adapterId !== adapterIdOf(adapter) ||
         canonical(saved.plan) !== canonical(plan)) {
       throw new Error(`Recorded implementation or plan changed for ${entityId}; use a new experiment ID`);
     }
-    let attempts = 0;
+    const attempts = new Map<string, number>();
     for (;;) {
       try {
         return await h.wait(entityId, STAGE_TIMEOUT_MS);
@@ -579,9 +582,11 @@ async function runEntity<V extends { id: string; parentId: string | null }, P ex
         if (recovery === "manual") throw error;
         const s = await h.state(entityId);
         if (s.status !== "blocked") throw error;
-        const job = s.pending?.runs.find((r) => !r.receipt)?.job;
-        if (!job || ++attempts > maxRetries) throw error;
-        await h.send(entityId, { tag: "retry", jobId: job.id });
+        // Several jobs may be blocked at once; retry each of them up to maxRetries times.
+        if (!s.unresolved?.length) throw error;
+        for (const jobId of s.unresolved) attempts.set(jobId, (attempts.get(jobId) ?? 0) + 1);
+        if (s.unresolved.some((jobId) => attempts.get(jobId)! > maxRetries)) throw error;
+        for (const jobId of s.unresolved) await h.send(entityId, { tag: "retry", jobId });
       }
     }
   } finally {
@@ -639,7 +644,7 @@ export async function optimizeReflective<P extends PromptInput = string>(opts: R
     const full: EvaluationPlan = { ...plan, rounds: 1, costLimit };
     const adapter = createEvaluationExperiment({ implementation: evaluationImplementation, plan: full,
       run: opts.run, score: opts.score, unwrap, recovery });
-    return runEntity(opts.storage, entityId, adapter, full, recovery, maxRetries, "reflective-evaluation").then((state) => {
+    return runEntity(opts.storage, entityId, adapter, full, recovery, maxRetries, "reflective-evaluation", opts.concurrency).then((state) => {
       spent += state.spent;
       executions += state.executions;
       return state.trials[0]!;

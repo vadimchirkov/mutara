@@ -40,11 +40,18 @@ Date, Map and functions are not persistent values; convert them explicitly.
 | `execute(job, plan)` | Promise of `{ output, cost }`. Enforce the reservation in the executor. |
 | `grade(job, receipt, plan)` | Pure local `{ metrics: Record<string, number>, data }`, or `null` to await external feedback. Metrics must be finite. |
 | `assess(runs, plan)` | `{ evaluation, decision: { accepted, reason } }`. Each run contains job, receipt and observation. Decides accept/reject ONLY — the new champion on accept is always the `propose` candidate, never anything `assess` builds. |
-| `early?(runs, plan)` | Optional, pure. Receives the observed prefix before the next job is requested; `true` calls `assess` on that prefix and drops the remaining jobs. Only for decision rules valid under optional stopping. |
+| `early?(runs, plan)` | Optional, pure. Receives the observed prefix before the next job is requested; `true` stops requesting, waits for jobs already in flight, then calls `assess` on everything observed and drops the remaining jobs. Only for decision rules valid under optional stopping. |
 
 Callbacks receive copies of persisted values. Closures and external application
-state remain the host's responsibility. The engine executes jobs sequentially.
-It reserves the entire candidate's job budget before beginning that candidate.
+state remain the host's responsibility. `createLearner(adapter, { concurrency })`
+(also a `learnerHarness` option; default 1) runs up to that many jobs of one
+candidate at once, requested in order. Jobs are launched outside the entity's
+turn and report back as commands, so reads stay responsive. Results are the same
+as sequential execution unless `early` is set: then jobs already in flight when
+it fires are paid, charged to `spent` and included in `assess`, so the stop can
+come a few jobs later. `concurrency` is operational and not journaled.
+It reserves the entire candidate's job budget before beginning that candidate,
+so spent plus every in-flight reservation never exceeds the budget.
 An accepted candidate becomes the experiment champion; rejected candidates remain
 in history. It does not create new strategy primitives on its own.
 

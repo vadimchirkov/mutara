@@ -5,7 +5,8 @@
 //
 // Options: --rounds N (8), --task easy|hard (easy), --feedback full|none (full: the reflector
 // also sees evaluator feedback), --strategy champion|pareto (champion), --components (one
-// prompt component per field instead of one prompt), --merges N (0), --dry.
+// prompt component per field instead of one prompt), --merges N (0), --concurrency N (1: task
+// calls in flight at once; results do not depend on it), --dry.
 //
 // Optional: MUTARA_REFLECT_MODEL (default: the task model), MUTARA_LLM_TEMPERATURE (default 0).
 // Re-running with the same directory resumes from the journal without repeating finished calls.
@@ -18,7 +19,7 @@ import { INITIAL_PROMPT, OBJECTIVE, dataset, grade } from "./task.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
-const valued = ["--rounds", "--task", "--feedback", "--strategy", "--merges"];
+const valued = ["--rounds", "--task", "--feedback", "--strategy", "--merges", "--concurrency"];
 const directory = args.find((a, i) => !a.startsWith("--") && !valued.includes(args[i - 1]));
 if (!directory) throw new Error("Usage: node examples/reflective-bench/run.mjs NEW_REPORT_DIRECTORY [options]");
 const dry = args.includes("--dry");
@@ -63,6 +64,7 @@ const result = await optimizeReflective({
     ? `payments-${taskModel}-v1`
     : `payments-${config.task}-${config.feedback}-${config.strategy}-${components ? "components" : "single"}-m${config.merges}-${taskModel}-v1`,
   storage: join(resolve(directory), "bench.db"),
+  concurrency: Number(flag("--concurrency", 1)),
   // Pins everything that shapes behaviour. Never the API key.
   implementation: { task: source("task.mjs"), llm: source("llm.mjs"), run: source("run.mjs"), taskModel, reflectModel, temperature },
   initialPrompt,

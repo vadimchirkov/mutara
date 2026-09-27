@@ -34,6 +34,8 @@ export interface OptimizeOptions extends OptimizerOptions {
   /** Reuse only to reopen this same experiment. Unique across shared executors. */
   id: string;
   storage?: string;
+  /** Jobs of one trial executing at once (default 1); see `LearnerOptions.concurrency`. */
+  concurrency?: number;
 }
 export interface OptimizerResult {
   id: string;
@@ -133,7 +135,7 @@ export function createOptimizer(opts: OptimizerOptions) {
 export async function optimize(opts: OptimizeOptions): Promise<OptimizerResult> {
   if (typeof opts.id !== "string" || !opts.id.trim()) throw new Error("An experiment ID is required");
   const { adapter, plan } = createOptimizer(opts);
-  const h = learnerHarness(opts.storage ?? ":memory:", adapter);
+  const h = learnerHarness(opts.storage ?? ":memory:", adapter, { concurrency: opts.concurrency });
   try {
     const saved = await h.startOrResume(opts.id, plan);
     if (saved.coreId !== coreId || saved.adapterId !== digest({ implementation: adapter.implementation, recovery: adapter.recovery }) ||

@@ -149,8 +149,8 @@ significant and violations did not grow. `scoreRange` is max − min possible sc
 
 - Default `recovery: "manual"`, matching paid model calls: a lost reflection
   or task response blocks the round for reconciliation instead of silently
-  re-spending. `repeatable`/`idempotent` auto-retry blocked jobs up to
-  `maxRetries` (default 3).
+  re-spending. `repeatable`/`idempotent` auto-retry every blocked job up to
+  `maxRetries` (default 3) times each.
 - Every reflection call receives a stable `requestId`
   (`<id>/reflect/<round>`); implement idempotent reflector calls keyed by it
   when the provider supports deduplication. See [operations.md](operations.md).
@@ -179,7 +179,8 @@ significant and violations did not grow. `scoreRange` is max − min possible sc
 | `budget.cost` | Total cost budget; default 0. |
 | `recovery` | Default `manual`. |
 | `parentStrategy` / `seed` | `champion` (default) or `pareto`; seed default 7919. |
-| `maxRetries` | 0–10; default 3. Only for non-manual recovery. |
+| `maxRetries` | 0–10 retries per failed job; default 3. Only for non-manual recovery. |
+| `concurrency` | Task calls of one evaluation stage in flight at once; default 1. Same results as sequential; not pinned. Reflection calls stay one at a time. |
 
 Pure helpers (`buildReflectionPrompt`, `paretoFrontier`, `selectParent`) are
 exported for testing custom variations. `buildReflectionPrompt` takes an
