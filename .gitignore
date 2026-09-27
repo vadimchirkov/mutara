@@ -28,3 +28,6 @@ opencode.json
 
 # Python bytecode (examples/lunar).
 __pycache__/
+
+# IFBench runs (ledgers, journals, reports) — regenerated, never committed.
+runs/

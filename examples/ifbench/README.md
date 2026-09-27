@@ -91,7 +91,7 @@ Paired Mutara − GEPA per model: pending.
 ## Crash recovery
 
 ```bash
-node examples/ifbench/crash.mjs runs/ifbench-crash-v1 --dry --budget 1200 --kill-at 500
+node examples/ifbench/crash.mjs runs/ifbench-crash-v1 --dry --budget 1200 --kill-at 600
 ```
 
 For each system, `crash.mjs` runs once without interruption. It then starts a second run,
@@ -102,15 +102,20 @@ results the killed process lost.
 
 | System | Calls, uninterrupted | Calls, killed + restarted | Extra | Same champion and test score |
 |---|---|---|---|---|
-| Mutara | 2188 | 2200 (508 before the kill) | 12 | yes |
-| GEPA | not measured | | | |
+| Mutara | 2188 | 2199 (603 before the kill) | 11 | yes |
+| GEPA | 3726 | 4326 (600 before the kill) | 600 | yes |
 
-The Mutara row was measured with the stub model and a stand-in scorer. It shows which calls
-get paid twice, which depends on orchestration and not on the model. It says nothing about
-quality. Finished jobs were never executed again. The 12 extra calls were work in flight
-at the kill: with `repeatable` recovery, a job whose receipt was not yet journaled runs
-again. The bound is 8 concurrent jobs × 2 calls. `manual` recovery would block on those
-jobs instead of paying for them again. The GEPA row needs the dspy environment, which was
-unavailable when this benchmark was built. dspy.GEPA resumes its search from `log_dir`. Its
-test evaluation is not checkpointed, so a kill during the test phase pays for that phase
-again.
+Both rows were measured with the stub model and the real checker. They show which calls
+get paid twice, which depends on orchestration and not on the model. They say nothing
+about quality. On the Mutara side, finished jobs were never executed again. The 11 extra
+calls were work in flight at the kill: with `repeatable` recovery, a job whose receipt
+was not yet journaled runs again. The bound is 8 concurrent jobs × 2 calls. `manual`
+recovery would block on those jobs instead of paying for them again. On the GEPA side,
+the restart repaid the full uninterrupted amount (3726): the kill landed during
+optimization, and no checkpoint reuse was observed — the 600 calls before the kill were
+wasted and the search plus test evaluation ran again. Same champion and test score on
+both sides is expected with the stub model, which answers deterministically; it says
+nothing about quality either.
+One Mutara restart out of three stalled for several minutes with no journal or proxy
+activity, then completed on a manual retry of the same directory with identical
+results; the cause is undetermined.
