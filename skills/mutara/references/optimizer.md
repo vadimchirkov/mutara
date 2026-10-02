@@ -76,6 +76,23 @@ each case; with `concurrency: N` (an `optimize` option, default 1) up to N run a
 once. Only the `sequential` rule is affected: pairs already in flight when it
 stops are still paid and counted. Map `sample` to a pinned task; use `id` for actual idempotency.
 
+Seed all randomness inside `execute` (simulator, sampling, data shuffles) from
+`sample`, never from `id` or the clock. Baseline and candidate then see the same
+random draws, and the paired difference measures the config, not luck. On the
+synthetic [eval-bench](https://github.com/vadimchirkov/mutara/tree/main/examples/eval-bench) task with local mutation this raised the final pass rate from
+0.67 to 0.90 and cut accepted-but-worse candidates from 8 to 0 per run, at the
+same cost. On Lunar Lander it made no measurable difference: there the
+returns of two controllers on one seed correlate only 0.0-0.3. The gain grows
+with that correlation. An LLM call at temperature > 0 still adds noise that a shared seed cannot
+remove.
+
+```js
+execute: async (config, { sample }) => {
+  const rand = seededRandom(sample);   // same stream for baseline and candidate
+  return { output: { score: await runTask(config, cases[sample], rand) }, cost: 1 };
+},
+```
+
 Prepare `trials * samplesPerTrial` independent evaluation cases for bounded
 search. Do not recycle indices with modulo or treat repetitions of the same
 task as independent evidence. Keep labels out of agent inputs. Reserve separate

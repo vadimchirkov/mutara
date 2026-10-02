@@ -18,6 +18,22 @@ memory. Seeds alone do not make a remote model deterministic: record responses,
 usage, model version and retries. Repeatedly tuning on the same small validation
 set can overfit. Reusing it is a heuristic, not an independent statistical test.
 
+## Designing the score
+
+Measured on one synthetic task (5-field extraction, 10 seeds, equal budget),
+see [eval-bench](https://github.com/vadimchirkov/mutara/tree/main/examples/eval-bench).
+Not yet confirmed on a real task.
+
+- **Give partial credit.** Score the share of fields correct, not 1 only when
+  all are correct. All-or-nothing lowered the final pass rate by 0.14-0.30.
+- **Score with code when you can.** A noisy judge (score + N(0, 0.2)) cost 0.22.
+  Spending 3x on judge calls or on cases did not win it back.
+- **Keep rounds, not cases.** At a fixed budget, 10 rounds x 50 cases lost 0.22
+  to 50 x 10: fewer rounds means fewer candidates.
+- **Use strict rules at the end.** `bounded` and `sequential` accepted 3
+  candidates in 80 runs at 500 cases per side. Pick candidates with
+  `heuristic`, then confirm the result with `gate` or the final audit on fresh cases.
+
 ## Acceptance options
 
 The declarative optimizer supplies three rules: `bounded` (default),
