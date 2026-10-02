@@ -68,11 +68,11 @@ What they taught about the engine itself:
   while the league's average mix reached 0.09 to 0.18. In non-transitive
   spaces ship the mixture, and drop "no regression on any member": holding
   scores against obsolete members pins the champion to exploiting them.
-  [examples/league](league/). A second design (league in the plan, 0.5 par per
+  [examples/league](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/league/). A second design (league in the plan, 0.5 par per
   opponent, no Holm) gave the same answer: league 0.6915 ± 0.016 vs self-play
   0.6825 ± 0.013, difference +0.009 ± 0.012. The league loses the self-play
   head-to-head edge over v2 (0.4985 vs 0.5445) but gains nothing against the
-  fixed opponent. [examples/connect4](connect4/#league-vs-self-play-experiment-2-criteria-written-before-the-run).
+  fixed opponent. [examples/connect4](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/connect4/#league-vs-self-play-experiment-2-criteria-written-before-the-run).
 
 ## Limits of greedy search, and the fix
 
@@ -84,7 +84,7 @@ What they taught about the engine itself:
   and the average strategy stored inside the version, turns one engine round
   into one CFR iteration. Result: exploitability 0.0089 after 300 rounds (3-link
   chain). The engine still provides journal, lineage, budgets and recovery.
-- **Local mutation in `optimize`: not added to the core.** [search-bench](search-bench/)
+- **Local mutation in `optimize`: not added to the core.** [search-bench](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/search-bench/)
   compared the built-in `randomPropose` with a 1-2 dimension Gaussian mutation
   of the champion, 10 seeds per cell, criterion fixed before the run. With the
   default `bounded` rule neither generator got a single candidate accepted in
@@ -94,7 +94,7 @@ What they taught about the engine itself:
   6: both generators accepted 9-26 of 50 candidates on noise and drifted. The
   acceptance rule and evaluation noise decide the outcome before the generator
   does. Users who need local search pass it through `propose`, as Lunar does.
-- **Which evaluation fixes pay off.** [eval-bench](eval-bench/) tested five
+- **Which evaluation fixes pay off.** [eval-bench](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/eval-bench/) tested five
   levers on a synthetic 5-field extraction task, 10 seeds, same budget unless
   noted. Same dice for baseline and candidate on each case gave the largest
   gain: with local mutation true pass rate 0.67 to 0.90, bad accepts 8 to 0 per
@@ -105,14 +105,14 @@ What they taught about the engine itself:
   80 runs. Order of fixes: share randomness, score partially, score exactly,
   then think about sample size. Strict rules go in the final audit.
 - **Shared seeds did not help on Lunar Lander.** Same check on a real
-  simulator ([plan and numbers](eval-bench/#real-task-check-lunar-lander-plan-written-before-the-run)):
+  simulator ([plan and numbers](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/eval-bench/#real-task-check-lunar-lander-plan-written-before-the-run)):
   10 campaigns with shared episode seeds vs 10 where the candidate flew other
   seeds. Audit return 218.5 ± 10.7 vs 215.0 ± 7.3, difference +3.5 ± 15.5.
   Per-episode returns of two controllers on one seed correlated only 0.00-0.29,
   so there was little shared noise to cancel. Shared randomness pays off only
   when outcomes on the same case move together; check that correlation on a
   few cases before counting on it.
-- **Racing did not beat a small fixed sample.** [racing](eval-bench/#racing-plan-written-before-the-run)
+- **Racing did not beat a small fixed sample.** [racing](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/eval-bench/#racing-plan-written-before-the-run)
   dropped a candidate after 3+ pairs once mean gain + 1 SE < 0 (`race`), and
   in `race2` also stopped clear winners (mean - 2 SE > 0). Equal budget of 1000
   evaluations, 10 seeds, 4 generator × scorer cells. One significant result in

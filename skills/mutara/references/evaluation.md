@@ -21,7 +21,7 @@ set can overfit. Reusing it is a heuristic, not an independent statistical test.
 ## Designing the score
 
 Measured on one synthetic task (5-field extraction, 10 seeds, equal budget),
-see [eval-bench](https://github.com/vadimchirkov/mutara/tree/main/examples/eval-bench).
+see [eval-bench](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/eval-bench).
 Not yet confirmed on a real task.
 
 - **Give partial credit.** Score the share of fields correct, not 1 only when

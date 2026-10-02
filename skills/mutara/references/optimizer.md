@@ -79,7 +79,7 @@ stops are still paid and counted. Map `sample` to a pinned task; use `id` for ac
 Seed all randomness inside `execute` (simulator, sampling, data shuffles) from
 `sample`, never from `id` or the clock. Baseline and candidate then see the same
 random draws, and the paired difference measures the config, not luck. On the
-synthetic [eval-bench](https://github.com/vadimchirkov/mutara/tree/main/examples/eval-bench) task with local mutation this raised the final pass rate from
+synthetic [eval-bench](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/eval-bench) task with local mutation this raised the final pass rate from
 0.67 to 0.90 and cut accepted-but-worse candidates from 8 to 0 per run, at the
 same cost. On Lunar Lander it made no measurable difference: there the
 returns of two controllers on one seed correlate only 0.0-0.3. The gain grows
