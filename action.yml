@@ -1,0 +1,33 @@
+name: Mutara gate
+description: Compare a candidate prompt, model or config against the baseline on fresh cases; pass only on a significant win or proven parity.
+inputs:
+  config:
+    description: Path to an ES module exporting the `gate` options (see teob-mutara/gate).
+    required: true
+  version:
+    description: teob-mutara version to run.
+    default: latest
+  allow-inconclusive:
+    description: Pass the step when the test has not collected enough evidence either way.
+    default: "false"
+outputs:
+  verdict:
+    description: promote, reject or inconclusive.
+    value: ${{ steps.gate.outputs.verdict }}
+runs:
+  using: composite
+  steps:
+    - id: gate
+      shell: bash
+      env:
+        CONFIG: ${{ inputs.config }}
+        VERSION: ${{ inputs.version }}
+        ALLOW_INCONCLUSIVE: ${{ inputs.allow-inconclusive }}
+      run: |
+        set +e
+        npx --yes "teob-mutara@$VERSION" gate "$CONFIG" --out mutara-gate.json
+        code=$?
+        verdict=$(node -e 'try{console.log(require("./mutara-gate.json").verdict)}catch{console.log("error")}')
+        echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+        if [ "$code" = 3 ] && [ "$ALLOW_INCONCLUSIVE" = "true" ]; then exit 0; fi
+        exit $code

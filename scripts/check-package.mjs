@@ -43,7 +43,9 @@ try {
 import { learnerHarness } from "teob-mutara/sqlite";
 import { optimize, createOptimizer } from "teob-mutara/optimizer";
 import { buildReflectionPrompt, type ReflectiveOptions } from "teob-mutara/reflective";
-export { optimize, createOptimizer };
+import { gate, gateDecision, type GateOptions } from "teob-mutara/gate";
+export { optimize, createOptimizer, gate, gateDecision };
+void (null as unknown as GateOptions);
 void buildReflectionPrompt; void (null as unknown as ReflectiveOptions);
 const initial = version({ threshold: 0.5 }, digest({ task: "consumer" }));
 type Plan = BasePlan<typeof initial>;
@@ -69,7 +71,15 @@ assert.deepEqual(await optimize(options), result);
 assert.equal(calls, 4);
 `);
   run(process.execPath, ["optimizer.mjs"]);
-  console.log("PASS: clean install, copied adapters, prompt gate + final audit replay, TypeScript exports, and package contents.");
+  writeFileSync(join(directory, "gate.config.mjs"), `const cases = Array.from({ length: 40 }, (_, i) => ({ id: "c" + i, input: i }));
+export default { id: "package-gate", storage: "./gate.db", implementation: { task: "package-gate-v1" }, cases,
+  baseline: async () => ({ output: 0, cost: 1 }), candidate: async () => ({ output: 1, cost: 1 }),
+  score: (output) => ({ score: output }), scoreRange: 1 };
+`);
+  const gateReport = JSON.parse(run(join(directory, "node_modules/.bin/mutara"), ["gate", "gate.config.mjs"]));
+  assert.equal(gateReport.verdict, "promote");
+  assert(gateReport.cases < 40);
+  console.log("PASS: clean install, copied adapters, prompt gate + final audit replay, gate CLI, TypeScript exports, and package contents.");
 } finally {
   rmSync(directory, { recursive: true, force: true });
 }

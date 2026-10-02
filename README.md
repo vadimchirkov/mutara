@@ -1,26 +1,21 @@
 # Mutara
 
-**Anything you can run and score gets better on its own — and you can prove it.**
+**Make your AI workflow better or cheaper — and ship the change only when fresh data says so.**
 
-Prompts, strategies, numeric settings, routing rules. Give Mutara the thing to
-improve, examples, and a scorer. It finds failures, rewrites the candidate,
-and keeps it only if it wins on data it never trained on.
+Give Mutara what to improve, examples, and a scorer. It studies failures,
+rewrites the candidate, and keeps it only when it wins on data it never
+trained on. Prompts, numeric settings, agent strategies, routing rules —
+same engine.
 
-**Self-improving.** For prompts, it reads failures and your scorer's feedback,
-then rewrites the prompt itself. No hand-tweaking.
+- **Self-improving** — reads failures and scorer feedback, rewrites the candidate itself
+- **Safe** — new version promoted only if it also wins on validation cases the rewriter never saw, and breaks no hard rule
+- **Tested** — final version vs. original on fresh cases with an anytime-valid significance test
+- **Ship gate** — `gate` checks a new prompt or a cheaper model against production: promote, reject or inconclusive, in code or CI
+- **Resilient** — crash or rate limit: resumes at the exact step, no repeated paid calls
 
-**Safe.** A new version replaces the current one only if it wins on unseen data
-and breaks no hard rule. Overfitting is caught, not shipped.
-
-**Provable.** The final version is tested against the original on fresh cases
-with a significance test. A number, not a hunch.
-
-**Resilient.** Crash, rate limit, restart — resumes at the exact step. Finished
-work is never paid twice. Every decision on record.
-
-On held-out cases: payment-extraction prompt **68 → 99–100%** in 1–2 rounds;
+Payment-extraction prompt **68 → 99–100%** in 1–2 rounds.
 Lunar Lander in wind **51–64 → 78–95%** landings.
-[Details and negative results ↓](#measured-results)
+Negative results shown too. [Measured results ↓](#measured-results)
 
 ## Quick start
 
@@ -30,115 +25,119 @@ Node.js 22+. `pnpm add teob-mutara`
 import { optimizeReflective, buildReflectionPrompt } from "teob-mutara/reflective";
 
 const result = await optimizeReflective({
-  id: "support-router-v1",
+  id: "support-router-v1",           // same ID after crash = resume
   storage: "./mutara.db",
-  implementation: { model: "my-model", scorer: "labels-v1" },
   initialPrompt: "Classify the support message.",
   objective: "Route refund requests correctly without breaking other intents.",
-  cases: [
-    { id: "t1", split: "train", input: { text: "I want my money back" }, expected: "refund" },
-    { id: "v1", split: "validation", input: { text: "Where is my order?" }, expected: "shipping" },
-  ],
-  finalCases: [/* fresh cases for the final significance test */],
-  finalTest: { scoreRange: 1 },
+  cases: [ /* { id, split: "train"|"validation", input, expected } */ ],
+  finalCases: [ /* fresh, used only for the significance test */ ],
 
   run: async (prompt, c) => {
-    const reply = await llm({ system: prompt, user: c.input.text });
-    return { output: reply.text, cost: reply.tokens };
+    const r = await llm({ system: prompt, user: c.input.text });
+    return { output: r.text, cost: r.tokens };
   },
   score: (receipt, c) => ({
     score: Number(receipt.output === c.expected),
-    violation: 0,
-    feedback: receipt.output === c.expected ? undefined : `expected ${c.expected}`,
+    feedback: receipt.output !== c.expected ? `expected ${c.expected}` : undefined,
   }),
   reflect: async ({ objective, parentPrompt, failures, parentScores }) => {
-    const reply = await llm({ user: buildReflectionPrompt(objective, parentPrompt, failures, parentScores) });
-    return { text: reply.text, cost: reply.tokens };
+    const r = await llm({ user: buildReflectionPrompt(objective, parentPrompt, failures, parentScores) });
+    return { text: r.text, cost: r.tokens };
   },
 
   rounds: 8,
-  costLimit: 4000, reflectionCostLimit: 16000, // per-call caps; receipts above them block the run
   budget: { cost: 2_000_000 },
 });
 
 console.log(result.champion);   // best proven prompt
-console.log(result.finalAudit); // original vs. best, with the test verdict
+console.log(result.finalAudit); // original vs. best, significance test verdict
 ```
 
 Full options: [reflective.md](skills/mutara/references/reflective.md).
+Try locally without API keys: `pnpm demo` / `pnpm demo:reflective`.
 
-Try locally without API keys:
+## Ship gate: cheaper model, same quality?
 
-```bash
-pnpm install --frozen-lockfile
-pnpm demo              # tune a classifier threshold; overfitting is caught
-pnpm demo:reflective   # prompt loop with a scripted model (wiring only)
+```js
+import { gate } from "teob-mutara/gate";
+
+const { verdict } = await gate({
+  id: "extract-big-to-small-v1", storage: "./mutara.db", implementation: { prompt, scorer: "fields-v2" },
+  cases: freshCases,                       // never used for tuning
+  baseline: (c) => extract(bigModel, prompt, c),
+  candidate: (c) => extract(smallModel, tunedPrompt, c),
+  score: (output, c) => ({ score: fieldsCorrect(output, c.expected) }),
+  scoreRange: 1,
+  minimumGain: -0.03,                      // at most 3 points worse
+});
+// "promote" | "reject" | "inconclusive"
 ```
+
+Stops as soon as the result is decisive, so clear cases are cheap. In CI:
+`npx teob-mutara gate gate.config.mjs` (exit 0/1/3) or the bundled GitHub Action.
+Details and sample sizes: [gate.md](skills/mutara/references/gate.md). Worked example:
+[cost-down](examples/cost-down/).
 
 ## Beyond prompts
 
 | You have | Use |
 |---|---|
-| A prompt + scored examples | `optimizeReflective` — `teob-mutara/reflective` |
+| Prompt + scored examples | `optimizeReflective` — `teob-mutara/reflective` |
 | Numeric settings or fixed variants | `optimize` — `teob-mutara/optimizer` |
-| Your own candidate source (GEPA, Optuna, solver, hand-picked list) | `Adapter` + `learnerHarness` — `teob-mutara` |
+| A change to ship or not (new prompt, cheaper model) | `gate` — `teob-mutara/gate` |
+| Your own candidate source | `Adapter` + `learnerHarness` — `teob-mutara` |
 
-See also: [prompt-gate](examples/prompt-gate/) (fixed candidates, validation gate),
-[shadow](examples/shadow/) (test against production logs without touching live traffic),
-[ready-made adapter template](skills/mutara/assets/adapter.mjs).
+Examples: [prompt-gate](examples/prompt-gate/) (fixed candidates, validation gate),
+[shadow](examples/shadow/) (test against production logs, no live traffic),
+[adapter template](skills/mutara/assets/adapter.mjs).
 
 ## Measured results
 
-Every number is on held-out cases never used to pick the winner. Each example's
+Every number on held-out cases never used to pick the winner. Each example's
 README has method, raw numbers, and negative results.
 
-**Prompts** — [reflective-bench](examples/reflective-bench/): extract amount,
-currency, date and vendor from payment messages. Format rules the initial prompt
-never states; the model learns them only from failures.
+**Prompts** — [reflective-bench](examples/reflective-bench/): extract payment
+fields. Format rules the initial prompt never states; learned only from failures.
 
-| Run | Original → best (60 unseen cases) | Rounds | Tokens |
+| Run | 60 unseen cases | Rounds | Tokens |
 |---|---|---|---|
-| 1 | 68% → 99% (significant) | 2 | 121k |
-| 2 | 68% → 100% (significant) | 1 | 86k |
+| 1 | 68 → 99% (significant) | 2 | 121k |
+| 2 | 68 → 100% (significant) | 1 | 86k |
 
-**Strategies** — same engine, no library changes:
+**Strategies** — [Lunar Lander in wind](examples/lunar/): 10 controller
+constants, 51–64 → 78–95% solved (3 seeds, 200 episodes each).
 
-| Example | What is tuned | Held-out result |
-|---|---|---|
-| [Lunar Lander in wind](examples/lunar/) | 10 controller constants | 51–64% → 78–95% solved (3 seeds × 200 episodes) |
-
-**What didn't work** — Kuhn poker plateaus with hidden information;
-gate vs. no gate gave no quality gain on 10 constants.
-[LESSONS.md](examples/LESSONS.md) · [gate negative result](examples/lunar/#gate-vs-ungated-negative-result).
+**What didn't work** — [LESSONS.md](examples/LESSONS.md),
+[gate negative result](examples/lunar/#gate-vs-ungated-negative-result).
 
 ## How it compares
 
-DSPy optimizes prompts but takes the best validation score — no final
-significance test, no hard-rule protection. Optuna tunes numbers well but
-doesn't generate prompts. Neither survives a crash without repeating paid calls.
-
-Mutara is not the strongest search. Its search is simple on purpose; the value
-is the discipline around it — so you know the gain is real and you never lose
-work or money getting it. Plug a stronger search in through the `Adapter`.
+The search is simple on purpose; GEPA (which Mutara's reflective mode
+follows), DSPy and Ax search well too, and GEPA also resumes from checkpoints.
+What Mutara adds is the decision around the search: hard rules can't be traded
+for score, the final gain or parity is a significance test on fresh cases with
+a promote / reject / inconclusive verdict, every paid call is journaled once,
+and it runs in TypeScript and CI. Plug a stronger search in through `Adapter`
+and keep the rest.
 
 ## Agent skill
 
-[skills/mutara/SKILL.md](skills/mutara/SKILL.md) teaches a coding agent to wire
-Mutara into your project (`Use $mutara. Improve the support-routing prompt.`).
-Ships in the npm package.
+[skills/mutara/SKILL.md](skills/mutara/SKILL.md) — teaches a coding agent to
+wire Mutara into your project. Ships in the npm package.
 
 ## References
 
 [API](skills/mutara/references/api.md) ·
 [optimizer](skills/mutara/references/optimizer.md) ·
-[reflective options](skills/mutara/references/reflective.md) ·
-[evaluation method](skills/mutara/references/evaluation.md) ·
-[recovery and rollback](skills/mutara/references/operations.md)
+[reflective](skills/mutara/references/reflective.md) ·
+[gate](skills/mutara/references/gate.md) ·
+[evaluation](skills/mutara/references/evaluation.md) ·
+[recovery](skills/mutara/references/operations.md)
 
 ## Limitations
 
-- Search is basic. For hard spaces, plug a stronger generator via `Adapter`.
-- Validation set is reused each round — report gains only from the final check.
-- Budget is enforced on reported costs; your runner must limit its own spending.
+- Search is basic — plug a stronger generator via `Adapter` for hard spaces.
+- Validation set reused each round; report gains from the final check only.
+- Budget enforced on reported costs; your runner limits its own spending.
 - Experiments in SQLite. No API keys in `implementation` or case data.
-- To resume: keep same package version and task code. No auto-migration.
+- Resume requires same package version and task code. No auto-migration.

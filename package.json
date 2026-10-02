@@ -30,6 +30,10 @@
     "./reflective": {
       "types": "./dist/reflective.d.ts",
       "import": "./dist/reflective.js"
+    },
+    "./gate": {
+      "types": "./dist/gate.d.ts",
+      "import": "./dist/gate.js"
     }
   },
   "files": [
@@ -42,7 +46,8 @@
     "examples/prompt-gate/*.mjs",
     "examples/prompt-gate/proposals.json",
     "examples/prompt-gate/fixtures/*.json",
-    "examples/prompt-gate/README.md"
+    "examples/prompt-gate/README.md",
+    "bin"
   ],
   "scripts": {
     "play": "tsx examples/alchemy/src/play.ts",
@@ -71,5 +76,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "bin": {
+    "mutara": "./bin/mutara.mjs"
   }
 }

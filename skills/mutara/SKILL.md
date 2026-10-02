@@ -49,6 +49,7 @@ In the checkout the path is `skills/mutara`.
 | Same optimizer with manual receipt reconciliation, rollback, a longer wait or an existing TEOB runtime | `createOptimizer` returns `{ adapter, plan }`; [optimizer.md](references/optimizer.md) and [operations.md](references/operations.md) |
 | Custom proposals, hard constraints, nonstandard case allocation or delayed/human feedback | `Adapter` from `teob-mutara`; [api.md](references/api.md) and [assets/adapter.mjs](assets/adapter.mjs) |
 | Multi-round prompt improvement from failure traces, single or multi-component, with merge (GEPA-style reflection) | `optimizeReflective` from `teob-mutara/reflective`; [reflective.md](references/reflective.md) |
+| Decide whether to ship one specific change (new prompt, cheaper model, optimizer champion) against the current setup, on fresh cases, in code or CI | `gate` from `teob-mutara/gate` or `npx teob-mutara gate`; [gate.md](references/gate.md) |
 
 Do not build an adapter when the optimizer covers the task. Do not force hard
 constraints into weighted metrics: a gain in one metric can outweigh a regression
@@ -116,6 +117,10 @@ point in verification, not only a standalone demo.
 When changing Mutara itself, run `pnpm typecheck`, `pnpm test`, `pnpm demo` and
 `pnpm test:package`. Alchemy is an additional benchmark under `examples/alchemy`
 and needs private recipe data; never fabricate or redistribute that dataset.
+
+Before shipping a champion or a model switch, run `gate` on fresh cases the search
+never saw, with a margin chosen up front. Report its verdict; an `inconclusive`
+verdict is not a pass.
 
 Report changed files, the configurable strategy, metric and acceptance rule,
 baseline/candidate results on held-out cases, cost, recovery mode and how to run

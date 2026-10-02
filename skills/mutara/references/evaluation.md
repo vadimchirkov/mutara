@@ -50,6 +50,21 @@ differences in order (Waudby-Smith & Ramdas) and accepts once wealth reaches
 `final: true`. A host adapter can stop early through `Adapter.early`.
 This bound can be conservative and reject plausible gains on small datasets.
 
+## What each decision controls
+
+| Decision | Rule | Error control |
+|---|---|---|
+| `optimizeReflective` round promotion | Candidate mean strictly higher on train and on validation, violations not higher | None. Validation is reused every round, so it is a selection heuristic and can overfit |
+| `optimizeReflective` final audit (`finalTest`) | `sequentialDecision`, champion vs initial on `finalCases`, violations not higher | Valid at `alpha` for one comparison, because final cases are fresh and never tuned on |
+| `optimize` (`bounded`, `sequential`) | Hoeffding or betting bound with Bonferroni over the predeclared comparisons | Valid only with fresh independent cases per comparison; not repaired for adaptive reuse |
+| `optimize` (`heuristic`) | Mean paired gain above `minimumGain` | None |
+| `gate` | `sequentialDecision` on `d − minimumGain`; `minimumGain` may be negative (non-inferiority) | Valid at `alpha` under optional stopping on fresh cases; see [gate.md](gate.md) |
+
+Report gains from the final audit or a gate, never from the search's own validation
+scores. `test/gate.test.ts` and `test/optimizer.test.ts` simulate the null and check
+that the promotion rate stays at or below `alpha`, including exactly at a
+non-inferiority margin.
+
 ## Evidence to retain
 
 Keep the baseline, candidate versions, cases/seeds, outputs, grades, decisions,
