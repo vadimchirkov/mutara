@@ -425,4 +425,34 @@ describe("concurrent jobs", () => {
       expect(stats.calls.sort()).toEqual(recovery === "manual" ? [] : lost);
     } finally { await second.close(); }
   });
+
+  it.each(["manual", "repeatable"] as const)("recovers jobs in flight beside a blocked job after a crash (%s)", async (recovery) => {
+    const db = path(`blocked-crash-${recovery}`);
+    // Job 0 fails and blocks the experiment; jobs 1-3 are still executing when the process dies.
+    const first = learnerHarness(db, adapter({ recovery, jobs: jobs4,
+      execute: (job) => job.id.endsWith("/0") ? Promise.reject(new Error("HTTP 401")) : new Promise(() => {}) }), { concurrency: 4 });
+    try {
+      await first.start("score", plan({ ...wide, rounds: 1 }));
+      await waitFor(async () => (await first.state("score")).status === "blocked");
+    } finally { await first.close(); }
+    const lost = [1, 2, 3].map((i) => `learning/score/0/${i}`);
+    const { stats, execute } = tracked(5);
+    const second = learnerHarness(db, adapter({ recovery, jobs: jobs4, execute }), { concurrency: 4 });
+    try {
+      await expect(second.wait("score")).rejects.toThrow();
+      const blocked = await second.state("score");
+      if (recovery === "manual") {
+        expect(blocked.unresolved).toEqual(["learning/score/0/0", ...lost]);
+        for (const [i, jobId] of ["learning/score/0/0", ...lost].entries()) {
+          await second.send("score", { tag: "received", jobId, receipt: { output: 10 + i, cost: 1 } });
+        }
+      } else {
+        expect(blocked.unresolved).toEqual(["learning/score/0/0"]);
+        await second.send("score", { tag: "retry", jobId: "learning/score/0/0" });
+      }
+      const s = await second.wait("score");
+      expect([s.status, s.executions, s.spent]).toEqual(["finished", 4, 4]);
+      expect(stats.calls.sort()).toEqual(recovery === "manual" ? [] : ["learning/score/0/0", ...lost]);
+    } finally { await second.close(); }
+  });
 });

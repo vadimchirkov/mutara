@@ -272,7 +272,8 @@ export function createLearner<V extends Identity, P extends BasePlan<V>, E>(adap
         case "strategy_reverted": return { ...s, champion: e.version };
       }
     },
-    async onRecoveryComplete(s, ctx) { if (s.status === "running") await ctx.tellSelf({ tag: "advance", resume: true }); },
+    // Blocked too: jobs that were executing beside the blocking one need relaunch or reconciliation.
+    async onRecoveryComplete(s, ctx) { if (s.status === "running" || s.status === "blocked") await ctx.tellSelf({ tag: "advance", resume: true }); },
   };
   return { aggregate, category, eventCodec: tagCodec<Ev>(...tags), stateCodec: objectCodec<S>("LearningExperiment") };
 }
