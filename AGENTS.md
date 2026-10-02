@@ -17,6 +17,23 @@ Implementation hashes distinguish source TS from built JS. Preserve old journals
 and reports; create new experiment IDs/databases after behavior-changing edits.
 Do not rewrite history to make replay pass or describe smoke tests as measured gains.
 
+## Writing rules (always on)
+
+When you write prose (docs, comments, messages, README, site copy):
+
+- No em dashes. Use commas, colons, or hyphens.
+- Vary sentence length. Follow a long sentence with a short one. Fragments are fine.
+- Cut AI vocabulary: delve, leverage, utilize, robust, comprehensive, streamline, furthermore, moreover, "it's worth noting", "in today's landscape".
+- No rule-of-three by reflex, no tidy summary closing every paragraph, no "In conclusion".
+- State facts, not their significance. Delete "represents / underscores / highlights".
+- Prefer active voice and a named actor over agentless passive.
+- One defensible stance over both-sides mush. Concrete numbers, names, examples over abstractions.
+- Never rewrite inside quotes or code blocks.
+
+For sites: one idea per section, inverted pyramid, headings + short paragraphs, 16px+ body, 4.5:1 contrast, 24px+ targets, keyboard accessible, alt by purpose. Semantic HTML (`header/main/article`), JSON-LD where it matters.
+
+On demand: `humanize` (rewrite), `ai-check` (forensic score), `writing-guidelines` (docs audit), `web-design-guidelines` (UI audit), `accessibility` (WCAG 2.2 audit), `userinterface-wiki` (152 UI rules), `humanizer` (55 patterns, `--score`).
+
 <!-- graft:start -->
 ## Graft — repo context graph
 

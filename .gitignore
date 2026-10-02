@@ -31,3 +31,4 @@ __pycache__/
 
 # IFBench runs (ledgers, journals, reports) — regenerated, never committed.
 runs/
+/graphify-out
