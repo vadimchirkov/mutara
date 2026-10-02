@@ -3,10 +3,10 @@
   "version": "0.2.0",
   "type": "module",
   "license": "MIT",
-  "description": "Universal optimizer that proves its gains: improves prompts, strategies and parameters, keeps only changes that win on unseen data, and resumes after crashes without paying twice.",
+  "description": "Ship better or cheaper AI workflows only when fresh data says so: reflective prompt optimization, parameter search and a paired significance gate (promote/reject/inconclusive), with budgets and crash-safe resume.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vadimchirkov/mutara.git"
+    "url": "git+https://github.com/vadimchirkov/mutara.git"
   },
   "engines": {
     "node": ">=22"
@@ -78,6 +78,6 @@
     "vitest": "^2.1.8"
   },
   "bin": {
-    "mutara": "./bin/mutara.mjs"
+    "mutara": "bin/mutara.mjs"
   }
 }
