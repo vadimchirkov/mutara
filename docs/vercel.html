@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mutara for Vercel AI SDK agents: self-improvement that ships only proven changes</title>
+<meta name="description" content="Mutara rewrites your agent's prompts from its failures and promotes a change only when it wins on cases it never saw, without breaking a hard rule. Works with your generateText.">
+<style>
+:root{
+  --paper:#fafafa; --card:#ffffff; --hairline:#ebebeb;
+  --stone:#666666; --charcoal:#4d4d4d; --obsidian:#171717; --carbon:#000000;
+  --green:#297a3a;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:76px}
+body{margin:0;background:var(--paper);color:var(--obsidian);font:16px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding:0 32px}
+/* nav */
+nav{position:sticky;top:0;background:rgba(250,250,250,.85);backdrop-filter:blur(20px);z-index:10}
+.nav-in{max-width:1280px;margin:0 auto;padding:0 32px;height:64px;display:flex;align-items:center;gap:24px}
+.brand{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px}
+.brand .tri{color:var(--carbon);font-size:15px}
+.nav-links{display:flex;gap:24px;margin-left:12px}
+.nav-links a{color:var(--obsidian);text-decoration:none;font-size:14px}
+.nav-actions{margin-left:auto;display:flex;gap:12px;align-items:center}
+.btn{display:inline-block;font-size:14px;border-radius:6px;padding:10px 20px;text-decoration:none;cursor:pointer;border:0}
+.btn-dark{background:var(--obsidian);color:#fff}
+.btn-ghost{background:transparent;color:var(--charcoal);box-shadow:0 0 0 1px var(--hairline)}
+.btn-pill{border-radius:9999px;padding:8px 16px}
+.btn-dark:hover{background:var(--carbon)}
+.btn-ghost:hover{color:var(--obsidian);box-shadow:0 0 0 1px var(--charcoal)}
+.nav-links a:hover{text-decoration:underline}
+/* skip link */
+.skip{position:absolute;left:-9999px;top:0;background:var(--obsidian);color:#fff;font-size:14px;padding:10px 20px;border-radius:0 0 6px 0;z-index:20}
+.skip:focus{left:0}
+/* hero */
+.hero{padding:96px 0 64px;display:grid;grid-template-columns:1.2fr .8fr;gap:48px;align-items:start}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.071em;text-transform:uppercase;margin:0 0 12px}
+h1{font-size:56px;line-height:1;letter-spacing:-3.36px;font-weight:450;margin:0 0 20px}
+.sub{font-size:16px;color:var(--charcoal);max-width:56ch;margin:0 0 28px}
+.cta-row{display:flex;gap:12px;margin-bottom:40px}
+.giveget{display:flex;gap:0;margin:0 0 28px;border:1px solid var(--hairline);border-radius:6px;background:var(--card);font-size:13px}
+.giveget div{flex:1;padding:12px 16px}
+.giveget div+div{border-left:1px solid var(--hairline)}
+.giveget span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.071em;text-transform:uppercase;color:var(--stone);margin-bottom:4px}
+.giveget .ok{color:var(--green)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px}
+.stat{font-family:var(--mono);font-size:13px;color:var(--stone)}
+.stat b{display:block;font-size:20px;color:var(--obsidian);font-weight:500;margin-bottom:4px}
+/* terminal */
+.term{background:var(--card);border:1px solid var(--hairline);border-radius:6px;padding:16px;font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--obsidian);overflow-x:auto}
+.term .cmd::before{content:"▲ ";color:var(--obsidian)}
+.term .ok::before{content:"✓ ";color:var(--green)}
+.term .dim{color:var(--stone)}
+.demo-tag{font-family:var(--mono);font-size:10px;letter-spacing:.071em;text-transform:uppercase;color:var(--stone);border-bottom:1px solid var(--hairline);padding-bottom:8px;margin-bottom:8px}
+/* sections */
+section{padding:64px 0}
+h2{font-size:30px;letter-spacing:-1.5px;line-height:1.1;font-weight:400;margin:0 0 12px}
+.lede{color:var(--charcoal);max-width:72ch;margin:0 0 32px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid4{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--card);border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 0 0 2px var(--paper);padding:24px}
+.card h3{font-size:20px;font-weight:500;margin:0 0 8px}
+.card p{font-size:14px;color:var(--charcoal);margin:0 0 16px}
+.card .file{font-family:var(--mono);font-size:11px;letter-spacing:.071em;text-transform:uppercase;color:var(--stone);margin-bottom:12px}
+.verdict{font-family:var(--mono);font-size:12px;margin-top:12px}
+.verdict .p{color:var(--green)}
+pre{background:var(--obsidian);color:#fafafa;border-radius:6px;padding:16px;font-family:var(--mono);font-size:12px;line-height:1.6;overflow-x:auto;position:relative;margin:0}
+pre .c{color:#8f8f8f}
+.copy{position:absolute;top:8px;right:8px;background:transparent;color:#a8a8a8;border:1px solid #4d4d4d;border-radius:6px;font-family:var(--mono);font-size:11px;padding:4px 10px;cursor:pointer}
+.copy:hover{color:#fff;border-color:#8f8f8f}
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.step-n{font-family:var(--mono);font-size:12px;color:var(--stone);margin-bottom:8px}
+/* table */
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--card);border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+caption{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.071em;text-transform:uppercase;color:var(--stone);padding:12px 16px}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.071em;text-transform:uppercase;color:var(--stone);text-align:left;padding:12px 16px;border-bottom:1px solid var(--hairline)}
+td{padding:12px 16px;border-bottom:1px solid var(--hairline);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:var(--mono);font-size:12px}
+/* faq */
+.faq{border-top:1px solid var(--hairline)}
+.faq details{border-bottom:1px solid var(--hairline);padding:16px 0}
+.faq summary{font-size:16px;cursor:pointer}
+.faq p{font-size:14px;color:var(--charcoal);max-width:78ch}
+/* footer */
+footer{padding:48px 0 64px;font-family:var(--mono);font-size:12px;color:var(--stone)}
+footer .tri{color:var(--carbon)}
+.final{padding:96px 0;text-align:left}
+@media(max-width:900px){.hero{grid-template-columns:1fr}h1{font-size:40px;letter-spacing:-2px}.grid2,.grid4,.steps{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.nav-links{display:none}}
+.problem{border-left:2px solid var(--obsidian);padding:4px 0 4px 16px}
+.problem h3{font-size:16px;font-weight:500;margin:0 0 6px}
+.problem p{font-size:14px;color:var(--charcoal);margin:0 0 6px}
+.problem a{font-family:var(--mono);font-size:11px;color:var(--stone)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.status{font-family:var(--mono);font-size:11px;color:var(--stone);margin-top:12px}
+.fit td:first-child{font-weight:500;white-space:nowrap}
+@media(max-width:900px){.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<nav><div class="nav-in">
+  <span class="brand"><span class="tri">▲</span> Mutara × Vercel AI SDK</span>
+  <span class="nav-links"><a href="#problem">Problem</a><a href="#how">How it works</a><a href="#rules">Hard rules</a><a href="#evidence">Evidence</a><a href="#recipes">Recipes</a></span>
+  <span class="nav-actions"><a class="btn btn-ghost btn-pill" href="https://github.com/vadimchirkov/mutara">GitHub</a><a class="btn btn-dark btn-pill" href="#start">Run the agent recipe</a></span>
+</div></nav>
+
+<main class="wrap" id="main">
+<header class="hero">
+  <div>
+    <p class="eyebrow">Self-improvement for Vercel AI SDK agents</p>
+    <h1>Let your agent improve itself. Ship only what's proven.</h1>
+    <p class="sub">Mutara rewrites your agent's prompt from its own failures, the way GEPA does. Then it does what optimizers leave to you: a rewrite reaches production only if it wins on cases it never saw, and never if it breaks a rule you marked as hard. Plug in your <code>generateText</code>.</p>
+    <div class="giveget">
+      <div><span>You give</span>agent, cases with answers, a scorer, hard rules</div>
+      <div><span>Mutara does</span>rewrite from failures, validate, test on fresh cases</div>
+      <div><span>You get</span><b class="ok">promote</b> / <b>reject</b> / <b>inconclusive</b></div>
+    </div>
+    <div class="cta-row">
+      <a class="btn btn-dark" href="#start">Run the agent recipe</a>
+      <a class="btn btn-ghost" href="https://github.com/vadimchirkov/mutara/blob/main/examples/vercel-ai/README.md">Tutorial: first verdict in 10 minutes</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>68 → 99%</b>extraction, 60 fresh cases</div>
+      <div class="stat"><b>11 vs 600</b>calls paid twice after a kill, Mutara vs GEPA</div>
+      <div class="stat"><b>3</b>verdicts: promote, reject, inconclusive</div>
+      <div class="stat"><b>51 → 78–95%</b>Lunar Lander strategy, not just prompts</div>
+    </div>
+  </div>
+  <div class="term" id="start"><div class="demo-tag">Demo output: stub model, wiring only</div> <span class="cmd">pnpm add teob-mutara</span><br><span class="cmd">node examples/vercel-ai/tools.mjs</span><br><span class="dim">{</span><br>&nbsp;&nbsp;"before": "Answer the question.",<br>&nbsp;&nbsp;"after": "Answer the question. Use get_weather. Use get_time.",<br>&nbsp;&nbsp;"gate": { "verdict": <span class="ok">"promote"</span>, "cases": 9 }<br><span class="dim">}</span><br><br><span class="dim"># real model: node examples/vercel-ai/tools.mjs ./my-executor.mjs</span></div>
+</header>
+
+<section id="problem">
+  <p class="eyebrow">The problem</p>
+  <h2>Optimizers find changes. Nothing decides if they're safe to ship.</h2>
+  <p class="lede">Teams that run self-improvement loops on agents hit the same failures. These come from published runs, not hypotheticals.</p>
+  <div class="grid3">
+    <div class="problem">
+      <h3>The prompt memorizes the training set</h3>
+      <p>On Terminal-Bench 2.0 a GEPA-optimized system prompt grew from 5 to 195 lines, with task IDs, file paths and exact error strings written in.</p>
+      <a href="https://arxiv.org/pdf/2607.14004">arXiv 2607.14004</a>
+    </div>
+    <div class="problem">
+      <h3>The score rises, the agent gets worse</h3>
+      <p>A judge rewarded "accuracy". Within a week the agent learned to hedge, because hedged answers are never wrong. Accuracy went up and usefulness went down.</p>
+      <a href="https://www.buildmvpfast.com/blog/ai-agent-self-improvement-recursive-accuracy-production-2026">practitioner report</a>
+    </div>
+    <div class="problem">
+      <h3>The average improves, a dangerous call appears</h3>
+      <p>Agents made unsafe tool calls in 10.6% of cases, 21.5% in file and database work. A mean score can hide that.</p>
+      <a href="https://arxiv.org/pdf/2607.16215">RAIL Guard, arXiv 2607.16215</a>
+    </div>
+    <div class="problem">
+      <h3>More iterations make it worse</h3>
+      <p>In one study, held-out quality peaked at steps 4 to 7 and fell after. A loop with no stop rule keeps "improving" past the peak.</p>
+      <a href="https://arxiv.org/pdf/2603.13791">arXiv 2603.13791</a>
+    </div>
+    <div class="problem">
+      <h3>Small sets backfire</h3>
+      <p>With 30 training examples, GEPA's optimized prompt scored 34.0% against 62.4% for the prompt it started from.</p>
+      <a href="https://arxiv.org/pdf/2602.22483">arXiv 2602.22483</a>
+    </div>
+    <div class="problem">
+      <h3>A crash costs the run twice</h3>
+      <p>A rate limit or kill mid-run. In our IFBench run, GEPA restarted from zero and paid 600 calls again. Mutara repaid 11.</p>
+      <a href="https://github.com/vadimchirkov/mutara/blob/main/examples/ifbench/README.md#crash-recovery">IFBench crash test</a>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <p class="eyebrow">How it works</p>
+  <h2>One loop: improve, accept, prove.</h2>
+  <p class="lede">Each candidate passes three checks, and each check uses data the earlier step never saw. Every proposal, score and decision goes to a journal in SQLite.</p>
+  <div class="steps">
+    <div class="card">
+      <div class="step-n">01 · Improve</div>
+      <h3>Rewrite from failures</h3>
+      <p>Your reflection model sees the failed train cases, their traces and your scorer's feedback, then rewrites the prompt. It never sees validation or final cases. Prompt length is capped per component, so it can't grow into a lookup table.</p>
+    </div>
+    <div class="card">
+      <div class="step-n">02 · Accept</div>
+      <h3>Win on validation, break no rule</h3>
+      <p>A rewrite becomes the new champion only if it scores higher on validation cases and adds no hard-rule violations. Rounds and a cost budget are set before the run.</p>
+    </div>
+    <div class="card">
+      <div class="step-n">03 · Prove</div>
+      <h3>Test on fresh cases</h3>
+      <p>The champion faces your original prompt on cases used for nothing else. A paired, anytime-valid test stops as soon as the answer is clear: promote, reject, or inconclusive. Inconclusive is not a pass.</p>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:24px">The champion is not deployed for you. You apply it through your own config, keep the previous version, and roll back from the journal if production disagrees.</p>
+</section>
+
+<section id="rules">
+  <p class="eyebrow">Hard rules</p>
+  <h2>A forbidden action can't be traded for a better average.</h2>
+  <p class="lede">Your scorer returns two numbers per case: a score and a violation count. Scores are averaged. Violations are not: a candidate with more violations than its parent is rejected, at every step, however high its score.</p>
+  <div class="grid2">
+    <pre><button class="copy" onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('copy',''));this.textContent='copied'">copy</button><span class="c">// score one agent run: right tool, right args, no forbidden call</span>
+import { calledTool } from "./vercel-ai.mjs";
+
+const score = (receipt, c) => {
+  const calls = receipt.output.toolCalls;
+  const graded = calledTool(calls, c.expected.tool, { args: c.expected.args });
+  const cancelled = calls.some((t) =&gt; t.name === "cancel_order");
+  return {
+    ...graded,
+    <span class="c">// hard rule: never cancel unless the user asked to</span>
+    violation: cancelled &amp;&amp; !c.expected.cancel ? 1 : 0,
+  };
+};</pre>
+    <div class="card">
+      <h3>What counts as a hard rule</h3>
+      <p>Anything you would roll back for even if quality went up: an irreversible tool call without a request, a refund over a limit, broken JSON, a leaked field. Write it as code, not as a judge prompt, so the optimizer can't argue with it.</p>
+      <p>Mutara checks versions before they ship. It does not intercept tool calls at runtime. Keep your runtime guardrails; Mutara makes sure a new prompt doesn't lean on them more.</p>
+    </div>
+  </div>
+</section>
+
+<section id="evidence">
+  <p class="eyebrow">Evidence</p>
+  <h2>Measured on cases the optimizer never saw.</h2>
+  <p class="lede">Each row links to the method and raw numbers. Scores on training or validation data are never reported as results.</p>
+  <table>
+    <caption>Measured results</caption>
+    <tr><th>Task</th><th>What changed</th><th>Result</th><th>Cost</th></tr>
+    <tr><td><a href="https://github.com/vadimchirkov/mutara/tree/main/examples/reflective-bench">Payment field extraction</a></td><td>Prompt, learned rules the initial prompt never stated</td><td class="mono">68 → 99%, 68 → 100% on 60 fresh cases, significant</td><td class="mono">1–2 rounds, 86–121k tokens</td></tr>
+    <tr><td><a href="https://github.com/vadimchirkov/mutara/tree/main/examples/lunar">Lunar Lander in wind</a></td><td>10 controller constants</td><td class="mono">51–64 → 78–95% landings, 3 seeds × 200 held-out episodes</td><td class="mono">local simulation</td></tr>
+    <tr><td><a href="https://github.com/vadimchirkov/mutara/blob/main/examples/ifbench/README.md#crash-recovery">IFBench crash recovery</a></td><td>Process killed mid-run, restarted</td><td class="mono">Mutara: 11 calls repaid. GEPA: 600 repaid, run restarted</td><td class="mono">stub model, real checker</td></tr>
+  </table>
+</section>
+
+<section id="recipes">
+  <p class="eyebrow">Recipes</p>
+  <h2>Start from the one closest to your agent.</h2>
+  <p class="lede">Each file runs on a stub with no API keys, so you see the whole loop in seconds. Pass an executor module with your <code>generateText</code>, model and tools to run it for real.</p>
+  <div class="grid4">
+    <div class="card">
+      <div class="file">tools.mjs</div>
+      <h3>Tool-calling agent</h3>
+      <p>Learns which tool to call, with which arguments, in which order. Scores the actual calls, not the text.</p>
+      <div class="status">stub demo · gate: promote, 9 pairs</div>
+    </div>
+    <div class="card">
+      <div class="file">router.mjs</div>
+      <h3>Router with a hard rule</h3>
+      <p>Routes support messages. A false cancellation is a violation, so a trigger-happy prompt never promotes, whatever its accuracy.</p>
+      <div class="status">stub demo · gate: promote, 17 pairs</div>
+    </div>
+    <div class="card">
+      <div class="file">extract.mjs</div>
+      <h3>Structured extraction</h3>
+      <p>Learns hidden format rules from failures. Works with <code>generateText</code> or schema-enforced <code>generateObject</code>; schema failures count as violations.</p>
+      <div class="status">stub demo</div>
+    </div>
+    <div class="card">
+      <div class="file">cost-down.mjs</div>
+      <h3>Switch to a cheaper model</h3>
+      <p>Tunes the prompt for the cheap model, then checks it against the expensive one with a margin you set before the run.</p>
+      <div class="status">stub demo</div>
+    </div>
+  </div>
+</section>
+
+<section id="fit">
+  <p class="eyebrow">Where it fits</p>
+  <h2>Next to the tools you already use.</h2>
+  <table class="fit">
+    <tr><th>Tool</th><th>What it does</th><th>What Mutara adds</th></tr>
+    <tr><td>DSPy, GEPA</td><td>Search for better prompts. Holding out data, stopping, and safety are your job.</td><td>Held-out acceptance, hard rules, a final significance test, resume after a crash. Plug your own search in through <code>Adapter</code>.</td></tr>
+    <tr><td>promptfoo, Braintrust, LangSmith</td><td>Score versions you wrote and show the diff.</td><td>Writes the candidates, and turns the diff into one of three decisions with a margin set in advance.</td></tr>
+    <tr><td>Runtime guardrails</td><td>Block a dangerous call as it happens.</td><td>Keeps a new version that triggers more violations from shipping at all.</td></tr>
+  </table>
+</section>
+
+<section id="wire">
+  <p class="eyebrow">Wiring</p>
+  <h2>Your generateText, your model, your tools.</h2>
+  <p class="lede">Copy <code>vercel-ai.mjs</code> from the package into your project. Mutara has no dependency on <code>ai</code>; it calls the function you pass. The runner sees only case inputs, never the expected answers.</p>
+  <pre><button class="copy" onclick="navigator.clipboard.writeText(this.parentElement.innerText.replace('copy',''));this.textContent='copied'">copy</button>import { generateText } from "ai";
+import { optimizeReflective, buildReflectionPrompt } from "teob-mutara/reflective";
+import { toolCallsOf, usageCost } from "./vercel-ai.mjs";
+
+const run = async (system, c) =&gt; {
+  const r = await generateText({ model, system, prompt: c.input.text, tools });
+  return { output: { text: r.text, toolCalls: toolCallsOf(r) }, cost: usageCost(r.usage) };
+};
+
+const result = await optimizeReflective({
+  id: "support-agent-v1", storage: "./mutara.db",   <span class="c">// same id after a crash = resume</span>
+  implementation: { model: "gpt-4.1-mini", tools: Object.keys(tools), scorer: "tools-v1" },
+  initialPrompt: SYSTEM_PROMPT,
+  objective: "Resolve support requests with the right tool. Never cancel unless asked.",
+  cases, finalCases,                                <span class="c">// finalCases: used only for the last test</span>
+  run, score,                                       <span class="c">// score from the Hard rules section</span>
+  reflect: async ({ objective, parentPrompt, failures, parentScores }) =&gt; {
+    const r = await generateText({ model: strongModel,
+      prompt: buildReflectionPrompt(objective, parentPrompt, failures, parentScores) });
+    return { text: r.text, cost: usageCost(r.usage) };
+  },
+  rounds: 6, maxPromptChars: 4000, budget: { cost: 3_000_000 },
+  finalTest: { scoreRange: 1 },
+});
+
+console.log(result.champion, result.finalAudit);</pre>
+</section>
+
+<section id="faq">
+  <p class="eyebrow">FAQ</p>
+  <h2>Questions from agent builders.</h2>
+  <div class="faq">
+    <details><summary>Is the search better than GEPA?</summary><p>No. The reflective search follows GEPA's idea: reflect on failures, keep a Pareto front, merge components. What differs is everything around it: held-out acceptance, hard rules, the final test, the journal and resume. If you prefer another search, plug it in through <code>Adapter</code> and keep the rest.</p></details>
+    <details><summary>My agent takes several steps. How do I score it?</summary><p>Your scorer gets the whole receipt: final text, every tool call and the trace. Helpers check which tools were called, with which arguments, and in which order. Anything else you can check in code, you can score or mark as a violation.</p></details>
+    <details><summary>How many cases do I need?</summary><p>A clear improvement often resolves within a few dozen fresh pairs, because the test stops early. Proving a cheaper setup is no worse costs more: about 120 pairs for a 0.05 margin on a 0–1 score, 200 for 0.03, 300 for 0.02. Production logs with known outcomes work well as cases.</p></details>
+    <details><summary>What does a run cost?</summary><p>The extraction benchmark took 86–121k tokens for the whole run. You set a cost budget and a per-call limit. After a crash, the same <code>id</code> resumes and finished calls are not paid again.</p></details>
+    <details><summary>What if a call has side effects?</summary><p>Use <code>recovery: "manual"</code>. A call that was in flight at a crash blocks for you to reconcile instead of running twice.</p></details>
+    <details><summary>Can feedback come later, or from a person?</summary><p>Yes, through a custom <code>Adapter</code>: a grade can return later, and the experiment waits for it in the journal.</p></details>
+  </div>
+</section>
+
+<section class="final">
+  <h2>Improve your agent without betting production on it.</h2>
+  <p class="lede">Run the agent recipe on a stub, then point it at your model and your cases.</p>
+  <div class="cta-row"><a class="btn btn-dark" href="#start">Run the agent recipe</a><a class="btn btn-ghost" href="https://github.com/vadimchirkov/mutara/blob/main/examples/vercel-ai/README.md">Read the tutorial</a></div>
+</section>
+</main>
+
+<footer class="wrap"><span class="tri">▲</span> Mutara × Vercel AI SDK · <code>teob-mutara</code> on npm · MIT</footer>
+</body>
+</html>

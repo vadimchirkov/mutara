@@ -50,6 +50,7 @@ In the checkout the path is `skills/mutara`.
 | Custom proposals, hard constraints, nonstandard case allocation or delayed/human feedback | `Adapter` from `teob-mutara`; [api.md](references/api.md) and [assets/adapter.mjs](assets/adapter.mjs) |
 | Multi-round prompt improvement from failure traces, single or multi-component, with merge (GEPA-style reflection) | `optimizeReflective` from `teob-mutara/reflective`; [reflective.md](references/reflective.md) |
 | Decide whether to ship one specific change (new prompt, cheaper model, optimizer champion) against the current setup, on fresh cases, in code or CI | `gate` from `teob-mutara/gate` or `npx teob-mutara gate`; [gate.md](references/gate.md) |
+| Vercel AI SDK app (`generateText` with system/tools/structured output) | `createTextRunner` from [assets/vercel-ai.mjs](assets/vercel-ai.mjs) + `optimizeReflective`/`gate`; [vercel-ai.md](references/vercel-ai.md) |
 | Coding-agent loop that edits repo files and keeps or resets git commits (autoresearch style) | Do not drive it with Mutara. Run one `gate` at the end: champion commit vs start commit, fresh cases, score computed outside the files the agent edits; [lessons](https://github.com/vadimchirkov/mutara/blob/main/examples/LESSONS.md#agent-loops-autoresearch) |
 
 Do not build an adapter when the optimizer covers the task. Do not force hard
