@@ -1,7 +1,8 @@
 // Minimal OpenAI-compatible chat client (OpenAI, OpenRouter, vLLM, Ollama, LM Studio,
 // Anthropic's OpenAI-compatible endpoint, ...). No dependency. Cost unit: tokens.
 
-export function chatClient({ baseUrl, apiKey, model, temperature = 0, maxTokens = 512, timeoutMs = 120_000 }) {
+// `body` adds provider-specific request fields, e.g. OpenRouter's { reasoning: { effort: "low" } }.
+export function chatClient({ baseUrl, apiKey, model, temperature = 0, maxTokens = 512, timeoutMs = 120_000, body: extra = {} }) {
   if (!baseUrl || !model) throw new Error("Set MUTARA_LLM_BASE_URL and MUTARA_LLM_MODEL");
   const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
   return async (messages) => {
@@ -12,7 +13,7 @@ export function chatClient({ baseUrl, apiKey, model, temperature = 0, maxTokens 
       response = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
-        body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
+        body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, ...extra }),
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!(response.status === 429 || response.status >= 500) || attempt >= 6) break;
