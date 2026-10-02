@@ -85,3 +85,32 @@ What they taught about the engine itself:
 - Measure the price of one evaluation before wiring the engine. A Pong game
   costs 0.15 ms, so a round is centiseconds with a reactive policy, and tree
   search per decision (~1000×) was ruled out before any code was written.
+
+## Agent loops (autoresearch)
+
+A Karpathy-style loop (an agent edits code, the commit stays if validation improves,
+otherwise reset) was measured with Mutara in two roles. The example was removed after
+the measurement; code, method and raw numbers are in
+[examples/autoresearch at 5ab62a4](https://github.com/vadimchirkov/mutara/tree/5ab62a4/examples/autoresearch).
+
+- **Per-step keep rule: no gain.** Simulation with known ground truth, 10,100
+  evaluations per run for every rule, 100 seeds. Mutara's sequential test as the keep
+  rule found less than naive keep/discard: 12 to 39 pp less in the early regime, at best
+  +0.2 ± 0.2 pp in the late one. The criterion was written before the run; no
+  configuration passed.
+- **Final audit: works.** One gate, champion vs start on fresh cases, promoted a branch
+  without a true gain in at most 1 of 100 runs for any rule. The naive loop claimed
+  +9.5 pp in the late regime for a true +0.2 pp.
+- **Real loops** (retrieval, Lunar Lander controller, a JS hot path; 20 steps of
+  `stealth/space-bunny-alpha`): all three final audits promoted real gains. Gating every
+  kept commit against the previous one, 7 of 22 kept steps held up. In retrieval, eight
+  steps after BM25 raised validation by 0.086 on 30 claims and changed nothing on 300
+  fresh ones. In Lunar Lander the shipped champion was worse than its own step 5 (0.713
+  vs 0.757 on fresh seeds, decided at 155 seeds).
+- **Time each case in its own process.** Identical code timed in one process drew
+  shares of 0.499, 0.509 and 0.503 across three processes: a shared offset that breaks
+  the independence the gate assumes.
+
+So Mutara drives a loop only when a candidate fits in one value that `reflect` or
+`propose` returns. For loops where an agent edits files and git holds the state, run
+one `gate` at the end.

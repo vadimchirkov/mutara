@@ -78,18 +78,42 @@ Stops as soon as the result is decisive, so clear cases are cheap. In CI:
 Details and sample sizes: [gate.md](skills/mutara/references/gate.md). Worked example:
 [cost-down](examples/cost-down/).
 
-## Beyond prompts
+## What Mutara fits
 
-| You have | Use |
-|---|---|
-| Prompt + scored examples | `optimizeReflective` — `teob-mutara/reflective` |
-| Numeric settings or fixed variants | `optimize` — `teob-mutara/optimizer` |
-| A change to ship or not (new prompt, cheaper model) | `gate` — `teob-mutara/gate` |
-| Your own candidate source | `Adapter` + `learnerHarness` — `teob-mutara` |
+Mutara runs the loop when a candidate fits in one value it can store and replay: text,
+JSON parameters, or a self-contained function.
 
-Examples: [prompt-gate](examples/prompt-gate/) (fixed candidates, validation gate),
-[shadow](examples/shadow/) (test against production logs, no live traffic),
-[adapter template](skills/mutara/assets/adapter.mjs).
+| Candidate | Example | API |
+|---|---|---|
+| System or agent prompt | Extraction prompt that learns format rules from failures ([reflective-bench](examples/reflective-bench/)); tool-calling agent that learns which tool to call ([vercel-ai](examples/vercel-ai/)) | `optimizeReflective` |
+| Several prompt parts | Planner and answerer prompts, tool descriptions, few-shot blocks improved together | `optimizeReflective` (components) |
+| Numeric settings | Controller constants ([lunar](examples/lunar/)); RAG top-k, score threshold; temperature | `optimize` |
+| Fixed variants | A few hand-written prompts, pick the best ([prompt-gate](examples/prompt-gate/)) | `optimize` or `Adapter` |
+| Self-contained function | Router with a hard rule (`violation`), ranking `(query, docs) => ids`, parser; run in a sandbox | `optimizeReflective` |
+| Your own search | CFR, evolution, an external generator | `Adapter` + `learnerHarness` |
+
+Mutara judges once when the change already exists and the question is whether to ship it.
+
+| Decision | Example | API |
+|---|---|---|
+| Cheaper model, same quality | Expensive vs cheap model with a tuned prompt ([cost-down](examples/cost-down/)) | `gate` with negative `minimumGain` |
+| New prompt vs production | Against logged production inputs, no live traffic ([shadow](examples/shadow/)) | `gate` |
+| Optimizer champion | Champion vs the original on fresh cases | `finalAudit` or `gate` |
+| Overnight agent loop result | Champion commit vs start commit of an autoresearch-style loop | `gate` |
+| Change in CI | Block a merge that drops quality | `npx teob-mutara gate`, GitHub Action |
+
+Not a fit:
+
+- An agent editing many files and keeping state in git. Let the agent run the loop and
+  audit the result with one `gate`.
+- A faster keep/discard rule for such loops. At equal budget, gating every step found less
+  than naive keep/discard ([lessons](examples/LESSONS.md#agent-loops-autoresearch)).
+- One expensive run that returns one number, such as a 5-minute GPU training run: `gate`
+  needs per-case scores.
+- Tasks without a reliable score. Build a small evaluation set first.
+- Training model weights.
+
+Adapter template: [skills/mutara/assets/adapter.mjs](skills/mutara/assets/adapter.mjs).
 
 ## Measured results
 
@@ -141,3 +165,4 @@ wire Mutara into your project. Ships in the npm package.
 - Budget enforced on reported costs; your runner limits its own spending.
 - Experiments in SQLite. No API keys in `implementation` or case data.
 - Resume requires same package version and task code. No auto-migration.
+- Not a faster search for agent loops: at equal budget, gating every step found less than naive keep/discard ([lessons](examples/LESSONS.md#agent-loops-autoresearch)). Use one gate at the end to check the loop's claimed gain.
