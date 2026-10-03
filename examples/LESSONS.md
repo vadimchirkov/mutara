@@ -73,6 +73,17 @@ What they taught about the engine itself:
   0.6825 ± 0.013, difference +0.009 ± 0.012. The league loses the self-play
   head-to-head edge over v2 (0.4985 vs 0.5445) but gains nothing against the
   fixed opponent. [examples/connect4](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/connect4/#league-vs-self-play-experiment-2-criteria-written-before-the-run).
+- **Colonel Blotto closed the league topic.** 20 soldiers on 5 fields, a
+  version is a mix of 4 distributions, 400 rounds per arm, 10 seeds. Every
+  final champion in "beat the last", league and league+exploiter ended at
+  exploitability 1 (random start: 1), difference 0.000 ± 0.000. A mix of 4
+  can reach 0.5: random search found it in 9000 evaluations. So the bottleneck
+  was local search around one champion, and no acceptance rule fixed it. Only
+  the average over past champions improved, and it improved most where the
+  champion cycled most: 0.59 for "beat the last" (76 accepts), 0.80
+  league+exploiter, 0.85 league. In a cyclic game ship the mix of past
+  champions and prefer the rule that gives the most varied history, not the
+  strictest one. [examples/blotto](https://github.com/vadimchirkov/mutara/tree/d0320e4/examples/blotto/#results-measured-once-2026-10-03).
 
 ## Limits of greedy search, and the fix
 
