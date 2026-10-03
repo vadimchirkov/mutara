@@ -73,6 +73,19 @@ What they taught about the engine itself:
   0.6825 ± 0.013, difference +0.009 ± 0.012. The league loses the self-play
   head-to-head edge over v2 (0.4985 vs 0.5445) but gains nothing against the
   fixed opponent. [examples/connect4](https://github.com/vadimchirkov/mutara/tree/2d1f300/examples/connect4/#league-vs-self-play-experiment-2-criteria-written-before-the-run).
+- **Prompt injection showed no whack-a-mole.** Six attack families arriving
+  one per week, one real model: the first accepted defense, trained on one
+  family, closed all six, so old holes had nothing to come back from and a
+  league of past families had nothing to guard. The same prompt measured 0.1
+  and 0.5 on one family in two arms at temperature 0, so 10 variants per
+  family are too few to call a hole returned. [examples/injection](injection/#real-run-2026-10-03-no-whack-a-mole-at-this-setup).
+- **Amplify then distill needs amplification that adds information.** Teacher
+  = same model, reasoning and a 5-vote majority: 0.889 field accuracy vs 0.875
+  for one plain call at 11% of the tokens. The plain call already agreed with
+  the teacher on 96% of fields, tuning on teacher votes accepted nothing, and
+  both missed the same 11% (rules nobody stated). A vote of one model fixes
+  slips, not knowledge; AlphaZero's search works because it consults the real
+  rules. [examples/distill](distill/#real-run-2026-10-03-fail-nothing-to-distill).
 - **Colonel Blotto closed the league topic.** 20 soldiers on 5 fields, a
   version is a mix of 4 distributions, 400 rounds per arm, 10 seeds. Every
   final champion in "beat the last", league and league+exploiter ended at
