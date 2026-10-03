@@ -9,6 +9,8 @@ import { assign, decideCandidate } from "../examples/connect4/league.mjs";
 import { grade, ATTACKS, NORMAL } from "../examples/injection/data.mjs";
 // @ts-ignore — standalone example.
 import { payoff as blotto, exploitability as blottoExploitability } from "../examples/blotto/blotto.mjs";
+// @ts-ignore — standalone example.
+import { regretMatching, bestResponse, weightedExploitability } from "../examples/blotto/psro.mjs";
 
 it("scores rock-paper-scissors exactly", () => {
   const rock = [N, 0, 0], paper = [0, N, 0], uniform = [4, 4, 4];
@@ -61,4 +63,16 @@ it("scores Colonel Blotto exactly", () => {
   // Against (4,4,4,4,4): 5 on four fields wins 4 of 5, so the best response scores 1.
   expect(blottoExploitability([[4, 4, 4, 4, 4]])).toBe(1);
   expect(blottoExploitability([[20, 0, 0, 0, 0]])).toBe(1);
+});
+
+it("PSRO pieces: regret matching, best response, weighted exploitability", () => {
+  const rps = [[0, -1, 1], [1, 0, -1], [-1, 1, 0]];
+  for (const w of regretMatching(rps)) expect(Math.abs(w - 1 / 3)).toBeLessThan(0.02);
+  // Unequal RPS (wins pay 2 on one edge) still converges near its equilibrium mix.
+  const skew = [[0, -1, 2], [1, 0, -1], [-2, 1, 0]];
+  const w = regretMatching(skew);
+  for (let i = 0; i < 3; i++) expect(Math.abs(skew[i].reduce((a, m, j) => a + m * w[j], 0))).toBeLessThan(0.02);
+  expect(bestResponse([[20, 0, 0, 0, 0]], [1]).value).toBe(1);
+  const mix = [[8, 4, 4, 2, 2], [4, 4, 4, 4, 4], [0, 5, 5, 5, 5], [10, 10, 0, 0, 0]];
+  expect(weightedExploitability(mix, [0.25, 0.25, 0.25, 0.25])).toBeCloseTo(blottoExploitability(mix), 12);
 });
