@@ -99,6 +99,13 @@ What they taught about the engine itself:
   can still fail later. With zero noise this is the best case; a sampled gate
   only freezes more. Default stays one gate at the end; a gate between batches
   needs batches longer than the search's own dips. [examples/blotto](https://github.com/vadimchirkov/mutara/tree/eb97bd1/examples/blotto/#results-computed-once-2026-10-03).
+- **An off-the-shelf search through ask/tell, gated once at release, did not beat the hill-climb.**
+  Lunar Lander, 10 constants, 3600 episodes per campaign, 5 seeds: Optuna TPE
+  with one gate on the release scored 240 ± 3 on 200 held-out episodes, the
+  gated hill-climb 231 ± 10; paired gain +9.1, SE 12.7, below the 2 SE bar
+  set in advance. The bridge held: a `kill -9` resume made 0 Python calls for
+  recorded trials. The gate promoted 5 of 5, so on this task it cost about
+  107 episodes and changed nothing. [examples/lunar](https://github.com/vadimchirkov/mutara/tree/e2e6562/examples/lunar/#optuna-through-asktell-gate-on-the-release-experiment-6).
 
 ## Limits of greedy search, and the fix
 
