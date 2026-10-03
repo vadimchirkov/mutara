@@ -84,6 +84,21 @@ What they taught about the engine itself:
   league+exploiter, 0.85 league. In a cyclic game ship the mix of past
   champions and prefer the rule that gives the most varied history, not the
   strictest one. [examples/blotto](https://github.com/vadimchirkov/mutara/tree/d0320e4/examples/blotto/#results-measured-once-2026-10-03).
+- **A strong generator fixed what no acceptance rule could.** Same Blotto,
+  PSRO in `propose` (exact best response to the current mix, regret matching
+  over the population): exploitability 1 -> 0.149 ± 0.007 in 100 rounds, 10
+  seeds, support of 38.6 distributions. The same PSRO behind a per-step "no
+  worse" gate stayed at 0.999: it froze on the first 1e-4 wobble on the
+  plateau before the drop. Same lesson as CFR in Kuhn poker: put the strong
+  search in the adapter and gate the release, not each step. [examples/blotto](https://github.com/vadimchirkov/mutara/tree/eb97bd1/examples/blotto/#results-measured-once-2026-10-03-1).
+- **A gate between batches is safe only when batches are long.** Replay of
+  the same PSRO runs with an exact "no worse than the last checkpoint" gate:
+  every 25 or 50 rounds cost nothing (0.149, same as no gate), every 10 rounds
+  froze 9 of 10 seeds at 0.216, every 5 at 0.385, every round at 0.999. The
+  10-round gate froze late, at rounds 70 and 90, so a gap that passes early
+  can still fail later. With zero noise this is the best case; a sampled gate
+  only freezes more. Default stays one gate at the end; a gate between batches
+  needs batches longer than the search's own dips. [examples/blotto](https://github.com/vadimchirkov/mutara/tree/eb97bd1/examples/blotto/#results-computed-once-2026-10-03).
 
 ## Limits of greedy search, and the fix
 
